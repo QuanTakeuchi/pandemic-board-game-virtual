@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pandemic — Lobby</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/lobby.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ ENTRY SCREEN -->
+<div class="lobby-page" id="entry-screen">
+
+  <header class="lobby-header">
+    <h1>PAN<span>DEMIC</span></h1>
+    <p>Cooperative board game — play online with friends</p>
+  </header>
+
+  <div class="card">
+    <!-- Tabs -->
+    <div class="tab-bar" role="tablist">
+      <button class="tab-btn active" id="tab-create" role="tab" aria-selected="true"
+              aria-controls="panel-create">Create Game</button>
+      <button class="tab-btn" id="tab-join" role="tab" aria-selected="false"
+              aria-controls="panel-join">Join Game</button>
+    </div>
+
+    <!-- Create panel -->
+    <div id="panel-create" role="tabpanel">
+      <div class="form-group">
+        <label for="create-name">Your name</label>
+        <input id="create-name" class="input" type="text" maxlength="20"
+               placeholder="e.g. Alice" autocomplete="off" />
+      </div>
+      <p class="error-msg" id="create-error" aria-live="polite"></p>
+      <button class="btn btn-primary btn-full" id="btn-create">Create Room</button>
+    </div>
+
+    <!-- Join panel -->
+    <div id="panel-join" role="tabpanel" class="hidden">
+      <div class="form-group">
+        <label for="join-code">Room code</label>
+        <input id="join-code" class="input" type="text" maxlength="4"
+               placeholder="e.g. PLGX" autocomplete="off"
+               style="text-transform:uppercase; letter-spacing:0.15em; font-size:1.2rem;" />
+      </div>
+      <div class="form-group">
+        <label for="join-name">Your name</label>
+        <input id="join-name" class="input" type="text" maxlength="20"
+               placeholder="e.g. Bob" autocomplete="off" />
+      </div>
+      <p class="error-msg" id="join-error" aria-live="polite"></p>
+      <button class="btn btn-primary btn-full" id="btn-join">Join Room</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ WAITING ROOM -->
+<div id="waiting-room" class="lobby-page hidden">
+
+  <header class="lobby-header">
+    <h1>PAN<span>DEMIC</span></h1>
+    <p>Waiting for players…</p>
+  </header>
+
+  <div class="card">
+    <!-- Room code display -->
+    <div class="room-code-display">
+      <p>Share this code with your friends</p>
+      <div class="code-badge" id="room-code-badge" title="Click to copy" role="button" tabindex="0">
+        ----
+      </div>
+      <p class="copy-hint" id="copy-hint">Click to copy</p>
+    </div>
+
+    <!-- Player list -->
+    <div class="player-list-header">
+      <h3>Players</h3>
+      <span class="player-count" id="player-count">0 / 4</span>
+    </div>
+    <ul class="player-list" id="player-list" aria-label="Players in room">
+      <!-- populated by JS -->
+    </ul>
+
+    <!-- Start button (host only) -->
+    <button class="btn btn-success btn-full hidden" id="btn-start">Start Game</button>
+    <p class="start-hint" id="start-hint"></p>
+  </div>
+
+</div>
+
+<!-- Socket.IO client (served by the server automatically) -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/lobby.js"></script>
+</body>
+</html>
