@@ -11,16 +11,14 @@
 
 <div class="game-layout">
 
-  <!-- ── Top bar ────────────────────────────────────────────────────────── -->
+  <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
   <header class="game-topbar">
 
     <div class="topbar-section">
       <span class="topbar-label">Outbreaks</span>
       <div class="outbreak-track">
-        <div class="outbreak-pips" id="outbreak-pips">
-          <!-- 8 pips, populated by hud.js -->
-        </div>
-        <span id="outbreak-count" style="font-size:13px; color:var(--muted); margin-left:4px;">0/8</span>
+        <div class="outbreak-pips" id="outbreak-pips"></div>
+        <span id="outbreak-count" style="font-size:13px;color:var(--muted);margin-left:4px;">0/8</span>
       </div>
     </div>
 
@@ -32,11 +30,18 @@
     <div class="topbar-section">
       <span class="topbar-label">Cures</span>
       <div class="cure-indicators" id="cure-indicators">
-        <div class="cure-dot" data-color="blue"   title="Blue — not cured"></div>
-        <div class="cure-dot" data-color="yellow" title="Yellow — not cured"></div>
-        <div class="cure-dot" data-color="black"  title="Black — not cured"></div>
-        <div class="cure-dot" data-color="red"    title="Red — not cured"></div>
+        <div class="cure-dot" data-color="blue"   title="Blue — active"></div>
+        <div class="cure-dot" data-color="yellow" title="Yellow — active"></div>
+        <div class="cure-dot" data-color="black"  title="Black — active"></div>
+        <div class="cure-dot" data-color="red"    title="Red — active"></div>
       </div>
+    </div>
+
+    <div class="topbar-section" style="gap:14px;">
+      <span class="topbar-label">Player deck</span>
+      <span id="player-deck-count" style="font-weight:700;color:var(--text);">—</span>
+      <span class="topbar-label" style="margin-left:8px;">Infection deck</span>
+      <span id="infection-deck-count" style="font-weight:700;color:var(--text);">—</span>
     </div>
 
     <div class="room-code-chip">
@@ -45,14 +50,17 @@
 
   </header>
 
-  <!-- ── Body ──────────────────────────────────────────────────────────── -->
+  <!-- ── Body ─────────────────────────────────────────────────────────────── -->
   <div class="game-body">
 
     <!-- Board canvas -->
     <div class="board-wrap">
       <canvas id="board-canvas"></canvas>
 
-      <!-- Transpacific connection legend -->
+      <!-- Turn banner (overlaid on board) -->
+      <div id="turn-banner" class="turn-banner other-turn">Waiting for game…</div>
+
+      <!-- Transpacific legend -->
       <div class="transpacific-legend">
         <div class="transpacific-line-sample"></div>
         <span>Transpacific connection</span>
@@ -62,37 +70,55 @@
     <!-- Sidebar -->
     <aside class="game-sidebar">
 
+      <!-- Players -->
       <div class="sidebar-section">
         <h3>Players</h3>
         <div class="player-cards" id="player-cards">
-          <!-- populated by hud.js -->
-          <div class="player-card" style="opacity:0.35; border-style:dashed;">
+          <div class="player-card" style="opacity:.35;border-style:dashed;">
             <div class="p-name" style="color:var(--muted);">Waiting for game…</div>
           </div>
         </div>
       </div>
 
+      <!-- Actions -->
       <div class="sidebar-section">
-        <h3>Actions Remaining</h3>
+        <h3>Actions</h3>
         <div class="actions-pip-row" id="actions-pips">
           <div class="action-pip"></div>
           <div class="action-pip"></div>
           <div class="action-pip"></div>
           <div class="action-pip"></div>
         </div>
+        <button class="btn btn-secondary btn-full" id="btn-end-turn" style="margin-top:10px;font-size:13px;">
+          End Turn Early
+        </button>
       </div>
 
+      <!-- Your hand -->
+      <div class="sidebar-section">
+        <h3>Your Hand</h3>
+        <div id="card-hand">
+          <div class="hand-empty">No cards yet</div>
+        </div>
+      </div>
+
+      <!-- Event log -->
       <div class="event-log">
         <h3>Event Log</h3>
         <div id="log-entries">
-          <div class="log-entry" style="font-style:italic;">Game not started yet.</div>
+          <div class="log-entry" style="font-style:italic;">Game not started.</div>
         </div>
       </div>
 
     </aside>
-
   </div>
 </div>
+
+<!-- Action popup (positioned absolutely over canvas) -->
+<div id="action-popup" class="action-popup hidden"></div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast hidden"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script type="module" src="/js/game-client.js"></script>

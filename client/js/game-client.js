@@ -1,108 +1,135 @@
 // ── Game client entry point ───────────────────────────────────────────────────
-// Connects to Socket.IO, handles game:state broadcasts, drives all rendering.
-// During Phase 2 the board renders immediately with no game state.
 
 import { drawBoard, resizeCanvas } from './renderer/board.js';
+import { drawPawns }               from './renderer/pawns.js';
 import { initHud, renderHud, renderEventLog } from './renderer/hud.js';
+import { InputHandler } from './input.js';
 
-// ── Parse URL params ──────────────────────────────────────────────────────────
+// ── URL params ────────────────────────────────────────────────────────────────
+
 const params   = new URLSearchParams(window.location.search);
 const roomCode = (params.get('room') || '').toUpperCase();
 const myName   = params.get('name') || '';
 
-// Redirect to lobby if accessed directly without a room code
-if (!roomCode) {
-  window.location.href = '/';
-}
+if (!roomCode) window.location.href = '/';
 
-// ── Canvas setup ──────────────────────────────────────────────────────────────
+// ── Canvas ────────────────────────────────────────────────────────────────────
+
 const canvas = document.getElementById('board-canvas');
 
-function render(state = null) {
+let currentState     = null;
+let myPlayerIndex    = null;
+let inputHandler     = null;
+
+function render() {
   resizeCanvas(canvas);
-  drawBoard(canvas, state);
+  const highlights = inputHandler?.getHighlights() ?? {};
+  drawBoard(canvas, currentState, highlights);
+  if (currentState) drawPawns(canvas, currentState);
 }
 
-// Initial render (no game state yet — Phase 2 preview)
-render();
+render(); // initial blank render
 
-// Re-render on window resize
-window.addEventListener('resize', () => render(currentState));
+window.addEventListener('resize', render);
 
 // ── HUD init ──────────────────────────────────────────────────────────────────
+
 initHud(roomCode);
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
+
 const socket = io();
-let currentState = null;
 
 socket.on('connect', () => {
-  // Rejoin the room on reconnect
   if (roomCode && myName) {
-    socket.emit('lobby:join', { code: roomCode, name: myName }, (res) => {
-      if (res && res.error) {
-        console.warn('Could not rejoin room:', res.error);
-      }
+    socket.emit('lobby:join', { code: roomCode, name: myName }, res => {
+      if (res?.error) showToast(res.error, 'error');
     });
   }
 });
 
-// Full state broadcast — re-render everything
-socket.on('game:state', (state) => {
+socket.on('game:state', state => {
   currentState = state;
-  render(state);
-  renderHud(state);
+
+  // Resolve which player we are (by name)
+  if (myPlayerIndex === null && state.players?.length) {
+    myPlayerIndex = state.players.findIndex(p => p.name === myName);
+    if (myPlayerIndex === -1) myPlayerIndex = null;
+  }
+
+  // Keep game-side player id in sync after reconnects
+  if (myPlayerIndex !== null && state.players[myPlayerIndex]) {
+    // Nothing extra needed — socket.id is already tracked server-side
+  }
+
+  render();
+  renderHud(state, myPlayerIndex);
   if (state.eventLog) renderEventLog(state.eventLog);
+
+  if (inputHandler) inputHandler.update(state, myPlayerIndex);
 });
 
-// Game over
-socket.on('game:over', ({ won, reason }) => {
-  showGameOverBanner(won, reason);
+socket.on('game:over', ({ won, reason }) => showGameOver(won, reason));
+
+// ── Input setup ───────────────────────────────────────────────────────────────
+
+const popup = document.getElementById('action-popup');
+inputHandler = new InputHandler(canvas, popup, dispatchAction);
+
+// ── Action dispatch ───────────────────────────────────────────────────────────
+
+function dispatchAction(type, params) {
+  socket.emit('game:action', { type, ...params }, res => {
+    if (res?.error) showToast(res.error, 'error');
+  });
+}
+
+// End Turn button
+document.getElementById('btn-end-turn')?.addEventListener('click', () => {
+  socket.emit('game:end-turn', res => {
+    if (res?.error) showToast(res.error, 'error');
+  });
 });
 
-// ── Game over banner ──────────────────────────────────────────────────────────
-function showGameOverBanner(won, reason) {
+// ── Toast notifications ───────────────────────────────────────────────────────
+
+function showToast(msg, type = 'info') {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.className   = `toast toast-${type}`;
+  toast.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.add('hidden'), 3500);
+}
+
+// ── Game-over banner ──────────────────────────────────────────────────────────
+
+function showGameOver(won, reason) {
   const existing = document.getElementById('game-over-banner');
   if (existing) existing.remove();
 
-  const banner = document.createElement('div');
-  banner.id = 'game-over-banner';
-  Object.assign(banner.style, {
-    position:   'fixed',
-    inset:      '0',
-    display:    'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(0,0,0,0.82)',
-    zIndex:     '100',
-    gap:        '16px',
-  });
-
-  const title = document.createElement('div');
-  title.textContent = won ? 'You saved humanity!' : 'The pandemic won.';
-  Object.assign(title.style, {
-    fontSize:   '2.4rem',
-    fontWeight: '700',
-    color:      won ? '#4caf50' : '#d94a4a',
-  });
-
-  const sub = document.createElement('div');
-  const reasonMap = {
-    outbreaks: 'Too many outbreaks (8).',
-    cubes:     'Ran out of disease cubes.',
-    cards:     'Player deck exhausted.',
+  const REASONS = {
+    outbreaks: '8 outbreaks reached.',
+    cubes:     'Disease cubes exhausted.',
+    cards:     'Player deck ran out.',
   };
-  sub.textContent = won ? 'All four diseases cured.' : (reasonMap[reason] || reason);
-  Object.assign(sub.style, { fontSize: '1.1rem', color: '#e8e8e8' });
 
-  const btn = document.createElement('button');
-  btn.textContent = 'Back to Lobby';
-  btn.className   = 'btn btn-secondary';
-  btn.addEventListener('click', () => { window.location.href = '/'; });
-
-  banner.appendChild(title);
-  banner.appendChild(sub);
-  banner.appendChild(btn);
-  document.body.appendChild(banner);
+  const overlay = document.createElement('div');
+  overlay.id = 'game-over-banner';
+  overlay.innerHTML = `
+    <div class="game-over-box">
+      <div class="game-over-title ${won ? 'won' : 'lost'}">
+        ${won ? '🎉 Humanity Saved!' : '💀 Pandemic Wins'}
+      </div>
+      <div class="game-over-sub">
+        ${won ? 'All four diseases cured.' : (REASONS[reason] || reason || '')}
+      </div>
+      <button class="btn btn-secondary" id="btn-back-lobby">Back to Lobby</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('btn-back-lobby').addEventListener('click', () => {
+    window.location.href = '/';
+  });
 }

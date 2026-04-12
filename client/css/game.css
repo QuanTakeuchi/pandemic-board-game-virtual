@@ -249,6 +249,148 @@
 .log-entry .log-city-black  { color: #b0b0c0; }
 .log-entry .log-city-red    { color: var(--red); }
 
+/* ── Turn banner ─────────────────────────────────────────────────────────── */
+.turn-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.turn-banner.my-turn    { background: rgba(74,144,217,0.85); color: #fff; }
+.turn-banner.other-turn { background: rgba(30,40,60,0.75);   color: var(--muted); }
+.turn-banner.phase-banner { background: rgba(232,195,74,0.85); color: #1a1f2e; }
+
+/* ── Card hand ───────────────────────────────────────────────────────────── */
+#card-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hand-card {
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hand-card-city   { border-left-color: var(--muted); } /* overridden inline by JS */
+.hand-card-epidemic { border-left-color: var(--danger); color: var(--danger); font-weight: 700; }
+.hand-empty       { font-size: 12px; color: var(--muted); font-style: italic; }
+
+/* ── Action popup ────────────────────────────────────────────────────────── */
+.action-popup {
+  position: fixed;
+  z-index: 50;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  min-width: 180px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.popup-city-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.popup-action-btn {
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.popup-action-btn:hover { background: #1e2a3a; }
+
+.popup-cancel-btn {
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 2px;
+}
+.popup-cancel-btn:hover { color: var(--text); }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 200;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast-error { background: var(--danger); color: #fff; }
+.toast-info  { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+/* ── Game-over overlay ───────────────────────────────────────────────────── */
+#game-over-banner {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.game-over-box {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.game-over-title      { font-size: 2.4rem; font-weight: 700; }
+.game-over-title.won  { color: var(--success); }
+.game-over-title.lost { color: var(--danger);  }
+.game-over-sub        { font-size: 1.1rem; color: var(--muted); }
+
+/* ── Player card you-tag ─────────────────────────────────────────────────── */
+.you-tag { font-size: 11px; color: var(--muted); }
+
 /* ── Transpacific connection legend ──────────────────────────────────────── */
 .transpacific-legend {
   position: absolute;

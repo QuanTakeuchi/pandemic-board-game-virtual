@@ -26,13 +26,18 @@ export function initHud(roomCode) {
 
 // ── Full state render (called on every game:state event) ─────────────────────
 
-export function renderHud(state) {
+export function renderHud(state, myPlayerIndex = null) {
   if (!state) return;
   renderOutbreakTrack(state.outbreakCount ?? 0);
   renderInfectionRate(state.infectionRateIndex ?? 0);
   renderCureIndicators(state.diseases ?? {});
-  renderPlayerCards(state.players ?? [], state.currentPlayerIndex ?? 0);
+  renderPlayerCards(state.players ?? [], state.currentPlayerIndex ?? 0, myPlayerIndex);
   renderActionPips(state.actionsRemaining ?? 4);
+  renderTurnBanner(state, myPlayerIndex);
+  if (myPlayerIndex !== null && state.players?.[myPlayerIndex]) {
+    renderCardHand(state.players[myPlayerIndex].hand ?? []);
+  }
+  renderDeckCounts(state);
 }
 
 // ── Outbreak track ────────────────────────────────────────────────────────────
@@ -70,7 +75,7 @@ function renderCureIndicators(diseases) {
 
 // ── Player cards ──────────────────────────────────────────────────────────────
 
-function renderPlayerCards(players, currentPlayerIndex) {
+function renderPlayerCards(players, currentPlayerIndex, myPlayerIndex) {
   const container = document.getElementById('player-cards');
   if (!container) return;
 
@@ -84,10 +89,14 @@ function renderPlayerCards(players, currentPlayerIndex) {
       ? '<span style="color:var(--success);font-size:10px;">●</span>'
       : '<span style="color:var(--muted);font-size:10px;">○</span>';
 
+    const youTag  = i === myPlayerIndex ? ' <span class="you-tag">(you)</span>' : '';
+    const roleStr = (p.role || 'no role').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const cityName = p.location ? p.location.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+
     div.innerHTML = `
-      <div class="p-name">${connectedDot} ${escapeHtml(p.name)}</div>
-      <div class="p-role">${escapeHtml(p.role || 'No role assigned')}</div>
-      <div class="p-location">${escapeHtml(p.location || '—')}</div>
+      <div class="p-name">${connectedDot} ${escapeHtml(p.name)}${youTag}</div>
+      <div class="p-role">${escapeHtml(roleStr)}</div>
+      <div class="p-location">📍 ${escapeHtml(cityName)} &nbsp;·&nbsp; ${p.hand?.length ?? 0} cards</div>
     `;
     container.appendChild(div);
   });
@@ -168,4 +177,71 @@ function escapeHtml(str) {
 
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ── Turn phase banner ─────────────────────────────────────────────────────────
+
+const PHASE_LABELS = {
+  actions: null,           // no banner during action phase
+  draw:    '📤 Drawing cards…',
+  infect:  '🦠 Infecting cities…',
+};
+
+function renderTurnBanner(state, myPlayerIndex) {
+  const banner = document.getElementById('turn-banner');
+  if (!banner) return;
+
+  const isMyTurn = myPlayerIndex === state.currentPlayerIndex;
+  const phase    = state.turnPhase;
+  const phaseMsg = PHASE_LABELS[phase];
+  const actionsLeft = state.actionsRemaining ?? 4;
+
+  if (phaseMsg) {
+    banner.textContent = phaseMsg;
+    banner.className   = 'turn-banner phase-banner';
+  } else if (isMyTurn) {
+    banner.textContent = `Your turn — ${actionsLeft} action${actionsLeft !== 1 ? 's' : ''} left`;
+    banner.className   = 'turn-banner my-turn';
+  } else {
+    const who = state.players?.[state.currentPlayerIndex]?.name || '…';
+    banner.textContent = `${who}'s turn`;
+    banner.className   = 'turn-banner other-turn';
+  }
+}
+
+// ── Card hand ─────────────────────────────────────────────────────────────────
+
+const COLOR_HEX = { blue: '#4a90d9', yellow: '#e8c34a', black: '#9090a0', red: '#d94a4a' };
+
+function renderCardHand(hand) {
+  const container = document.getElementById('card-hand');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!hand.length) {
+    container.innerHTML = '<div class="hand-empty">No cards</div>';
+    return;
+  }
+
+  hand.forEach(card => {
+    const div = document.createElement('div');
+    if (card.type === 'epidemic') {
+      div.className = 'hand-card hand-card-epidemic';
+      div.textContent = '⚠️ Epidemic';
+    } else {
+      div.className = `hand-card hand-card-city`;
+      div.style.borderLeftColor = COLOR_HEX[card.color] || '#888';
+      div.textContent = card.name || card.cityId;
+    }
+    container.appendChild(div);
+  });
+}
+
+// ── Deck counts ───────────────────────────────────────────────────────────────
+
+function renderDeckCounts(state) {
+  const pdEl = document.getElementById('player-deck-count');
+  const idEl = document.getElementById('infection-deck-count');
+  if (pdEl) pdEl.textContent = state.playerDeck?.drawPileCount ?? '?';
+  if (idEl) idEl.textContent = state.infectionDeck?.drawPileCount ?? '?';
 }
