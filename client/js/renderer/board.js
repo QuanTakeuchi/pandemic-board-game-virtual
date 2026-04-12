@@ -32,6 +32,7 @@ export function drawBoard(canvas, gameState = null) {
   drawBackground(ctx, W, H);
   drawConnections(ctx, W, H);
   drawCities(ctx, W, H, gameState);
+  if (gameState) drawDiseaseCubes(ctx, W, H, gameState);
 }
 
 // ── Background ────────────────────────────────────────────────────────────────
@@ -226,6 +227,57 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Disease cubes ─────────────────────────────────────────────────────────────
+// Cubes are drawn as small squares around the city node in a 4-quadrant layout:
+//   top-right = blue, bottom-right = yellow, bottom-left = black, top-left = red
+
+const CUBE_POSITIONS = {
+  blue:   { dx:  1, dy: -1 },
+  yellow: { dx:  1, dy:  1 },
+  black:  { dx: -1, dy:  1 },
+  red:    { dx: -1, dy: -1 },
+};
+
+function drawDiseaseCubes(ctx, W, H, gameState) {
+  const cubeMap = gameState.diseaseCubes || {};
+  const OFFSET  = CITY_RADIUS + 5;   // distance from city center
+  const CUBE_S  = 7;                  // cube square size in px
+
+  for (const [cityId, cubes] of Object.entries(cubeMap)) {
+    const city = CITIES[cityId];
+    if (!city) continue;
+
+    const cx = city.x * W;
+    const cy = city.y * H;
+
+    for (const [color, count] of Object.entries(cubes)) {
+      if (!count || count <= 0) continue;
+
+      const pos    = CUBE_POSITIONS[color];
+      const cubeCx = cx + pos.dx * OFFSET;
+      const cubeCy = cy + pos.dy * OFFSET;
+
+      // Cube fill
+      ctx.fillStyle = COLOR_MAP[color];
+      ctx.fillRect(cubeCx - CUBE_S / 2, cubeCy - CUBE_S / 2, CUBE_S, CUBE_S);
+
+      // Cube border
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth   = 1;
+      ctx.strokeRect(cubeCx - CUBE_S / 2, cubeCy - CUBE_S / 2, CUBE_S, CUBE_S);
+
+      // Count label (only when > 1)
+      if (count > 1) {
+        ctx.font         = 'bold 8px "Segoe UI", sans-serif';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = count >= 3 ? '#ff4444' : '#ffffff';
+        ctx.fillText(String(count), cubeCx, cubeCy);
+      }
+    }
+  }
 }
 
 // ── Resize handler ────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const { LobbyManager } = require('./lobby');
+const { GameManager }  = require('./game/GameManager');
 
 const PORT = process.env.PORT || 3000;
 
@@ -22,11 +23,13 @@ app.get('*', (req, res) => {
 
 // ── Socket.IO ──────────────────────────────────────────────────────────────────
 
-const lobbyManager = new LobbyManager(io);
+const gameManager  = new GameManager(io);
+const lobbyManager = new LobbyManager(io, gameManager);
 
 io.on('connection', (socket) => {
   console.log(`[connect]    ${socket.id}`);
   lobbyManager.registerHandlers(socket);
+  gameManager.registerHandlers(socket, lobbyManager);
 
   socket.on('disconnect', () => {
     console.log(`[disconnect] ${socket.id}`);
