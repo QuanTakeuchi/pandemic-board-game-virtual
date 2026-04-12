@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pandemic — Game</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/game.css" />
+</head>
+<body>
+
+<div class="game-layout">
+
+  <!-- ── Top bar ────────────────────────────────────────────────────────── -->
+  <header class="game-topbar">
+
+    <div class="topbar-section">
+      <span class="topbar-label">Outbreaks</span>
+      <div class="outbreak-track">
+        <div class="outbreak-pips" id="outbreak-pips">
+          <!-- 8 pips, populated by hud.js -->
+        </div>
+        <span id="outbreak-count" style="font-size:13px; color:var(--muted); margin-left:4px;">0/8</span>
+      </div>
+    </div>
+
+    <div class="topbar-section">
+      <span class="topbar-label">Infection Rate</span>
+      <span class="infection-rate-value" id="infection-rate">2</span>
+    </div>
+
+    <div class="topbar-section">
+      <span class="topbar-label">Cures</span>
+      <div class="cure-indicators" id="cure-indicators">
+        <div class="cure-dot" data-color="blue"   title="Blue — not cured"></div>
+        <div class="cure-dot" data-color="yellow" title="Yellow — not cured"></div>
+        <div class="cure-dot" data-color="black"  title="Black — not cured"></div>
+        <div class="cure-dot" data-color="red"    title="Red — not cured"></div>
+      </div>
+    </div>
+
+    <div class="room-code-chip">
+      Room <span id="topbar-room-code">----</span>
+    </div>
+
+  </header>
+
+  <!-- ── Body ──────────────────────────────────────────────────────────── -->
+  <div class="game-body">
+
+    <!-- Board canvas -->
+    <div class="board-wrap">
+      <canvas id="board-canvas"></canvas>
+
+      <!-- Transpacific connection legend -->
+      <div class="transpacific-legend">
+        <div class="transpacific-line-sample"></div>
+        <span>Transpacific connection</span>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="game-sidebar">
+
+      <div class="sidebar-section">
+        <h3>Players</h3>
+        <div class="player-cards" id="player-cards">
+          <!-- populated by hud.js -->
+          <div class="player-card" style="opacity:0.35; border-style:dashed;">
+            <div class="p-name" style="color:var(--muted);">Waiting for game…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Actions Remaining</h3>
+        <div class="actions-pip-row" id="actions-pips">
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+        </div>
+      </div>
+
+      <div class="event-log">
+        <h3>Event Log</h3>
+        <div id="log-entries">
+          <div class="log-entry" style="font-style:italic;">Game not started yet.</div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/js/game-client.js"></script>
+</body>
+</html>
