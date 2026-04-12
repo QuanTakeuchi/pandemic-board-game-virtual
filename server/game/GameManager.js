@@ -6,13 +6,13 @@ class GameManager {
     this.games = new Map(); // roomCode -> GameInstance
   }
 
-  // ── Create a new game from a lobby room ───────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
   createGame(room) {
     const instance = new GameInstance(room);
     instance.io    = this.io;
     this.games.set(room.code, instance);
-    console.log(`[game] Created game for room ${room.code} with ${room.players.filter(p => p.isConnected).length} players`);
+    console.log(`[game] Room ${room.code}: game created with ${room.players.filter(p => p.isConnected).length} players`);
     return instance;
   }
 
@@ -24,18 +24,36 @@ class GameManager {
     this.games.delete(code);
   }
 
-  // ── Socket event handlers ─────────────────────────────────────────────────
-  // Phase 3: only 'game:request-state' (for direct URL access).
-  // Full action handlers are added in Phase 4.
+  // ── Socket handlers ───────────────────────────────────────────────────────────
 
   registerHandlers(socket, lobbyManager) {
-    // Client can request the current game state at any time
-    // (used when navigating directly to /game.html?room=CODE)
+
+    // Client requests current game state (e.g. on page load / reconnect)
     socket.on('game:request-state', () => {
       const code = lobbyManager.socketToRoom.get(socket.id);
       if (!code) return;
       const game = this.games.get(code);
       if (game) game.sendStateTo(socket);
+    });
+
+    // Player performs an action
+    socket.on('game:action', (actionData, ack) => {
+      if (typeof ack !== 'function') return;
+      const code = lobbyManager.socketToRoom.get(socket.id);
+      if (!code) return ack({ error: 'You are not in a room.' });
+      const game = this.games.get(code);
+      if (!game) return ack({ error: 'Game not found.' });
+      game.performAction(socket.id, actionData, ack);
+    });
+
+    // Player voluntarily ends their turn early
+    socket.on('game:end-turn', (ack) => {
+      if (typeof ack !== 'function') return;
+      const code = lobbyManager.socketToRoom.get(socket.id);
+      if (!code) return ack({ error: 'You are not in a room.' });
+      const game = this.games.get(code);
+      if (!game) return ack({ error: 'Game not found.' });
+      game.endTurn(socket.id, ack);
     });
   }
 }

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(command -v node)",
+      "Bash(command -v npm)",
+      "Bash(npm install:*)",
+      "Read(//c/ProgramData/chocolatey/bin/**)",
+      "Read(//c/Program Files/nodejs/**)",
+      "Read(//c/Users/rohit/**)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}

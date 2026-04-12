@@ -2,25 +2,21 @@ const { PLAYER_CARDS }    = require('./data/player-cards');
 const { INFECTION_CARDS } = require('./data/infection-cards');
 const { ROLES }           = require('./data/roles');
 const { shuffle, insertEpidemics } = require('./engine/deck');
+const { applyAction }    = require('./engine/actions');
+const { runDrawPhase, runInfectPhase, advanceToNextPlayer } = require('./engine/turn');
 
-// Cards dealt to each player based on player count (official rules)
-const STARTING_HAND_SIZE = { 2: 4, 3: 3, 4: 2 };
-
-// Infection rate track — indexes into this array as epidemics are drawn
+const STARTING_HAND_SIZE   = { 2: 4, 3: 3, 4: 2 };
 const INFECTION_RATE_TRACK = [2, 2, 2, 3, 3, 4, 4];
 
+// Delay (ms) between automatic phase transitions so clients can read the board
+const PHASE_DELAY = 1200;
+
 class GameInstance {
-  /**
-   * @param {object} room        — LobbyManager room object
-   * @param {object} [options]
-   * @param {number} [options.epidemicCount=5]  — 4 (intro) | 5 (standard) | 6 (heroic)
-   */
   constructor(room, options = {}) {
     this.roomCode = room.code;
-    this.io       = null; // set by GameManager after construction
+    this.io       = null;          // set by GameManager after construction
     this.options  = { epidemicCount: 5, ...options };
 
-    // Only include connected players
     const activePlayers = room.players.filter(p => p.isConnected);
     this.state = this._buildInitialState(activePlayers);
   }
@@ -28,41 +24,31 @@ class GameInstance {
   // ── Initial state ────────────────────────────────────────────────────────────
 
   _buildInitialState(activePlayers) {
-    const playerCount  = activePlayers.length;
-    const handSize     = STARTING_HAND_SIZE[playerCount] ?? 2;
+    const playerCount = activePlayers.length;
+    const handSize    = STARTING_HAND_SIZE[playerCount] ?? 2;
 
-    // ── 1. Infection deck: shuffle and draw 9 cards for initial board setup ──
-    const infectionDrawPile   = shuffle([...INFECTION_CARDS]);
+    // ── 1. Infection deck: shuffle and draw 9 for initial setup ──────────────
+    const infectionDrawPile    = shuffle([...INFECTION_CARDS]);
     const infectionDiscardPile = [];
-    const diseaseCubes = {};
-    const supplyUsed   = { blue: 0, yellow: 0, black: 0, red: 0 };
+    const diseaseCubes         = {};
+    const supplyUsed           = { blue: 0, yellow: 0, black: 0, red: 0 };
 
     for (let i = 0; i < 9; i++) {
       const card      = infectionDrawPile.shift();
       const cubeCount = i < 3 ? 3 : i < 6 ? 2 : 1;
-
       infectionDiscardPile.push(card);
-
-      if (!diseaseCubes[card.cityId]) {
-        diseaseCubes[card.cityId] = { blue: 0, yellow: 0, black: 0, red: 0 };
-      }
+      if (!diseaseCubes[card.cityId]) diseaseCubes[card.cityId] = { blue: 0, yellow: 0, black: 0, red: 0 };
       diseaseCubes[card.cityId][card.color] += cubeCount;
       supplyUsed[card.color] += cubeCount;
     }
 
-    // ── 2. Player deck: shuffle base cards, deal hands, insert epidemics ──────
-    const playerCardPool = shuffle([...PLAYER_CARDS]);
-    const hands          = Array.from({ length: playerCount }, () => []);
+    // ── 2. Player deck: deal hands, then insert epidemics ────────────────────
+    const pool  = shuffle([...PLAYER_CARDS]);
+    const hands = Array.from({ length: playerCount }, () => []);
+    for (let i = 0; i < handSize * playerCount; i++) hands[i % playerCount].push(pool.shift());
+    const playerDrawPile = insertEpidemics(pool, this.options.epidemicCount);
 
-    // Deal round-robin so card order mirrors the physical game
-    for (let i = 0; i < handSize * playerCount; i++) {
-      hands[i % playerCount].push(playerCardPool.shift());
-    }
-
-    // Remaining pool gets epidemics inserted
-    const playerDrawPile = insertEpidemics(playerCardPool, this.options.epidemicCount);
-
-    // ── 3. Assign roles randomly ──────────────────────────────────────────────
+    // ── 3. Assign roles ───────────────────────────────────────────────────────
     const shuffledRoles = shuffle([...ROLES]);
 
     // ── 4. Build player objects ───────────────────────────────────────────────
@@ -75,7 +61,6 @@ class GameInstance {
       isConnected: true,
     }));
 
-    // ── 5. Assemble full state ────────────────────────────────────────────────
     return {
       roomCode:   this.roomCode,
       phase:      'playing',
@@ -83,10 +68,9 @@ class GameInstance {
 
       currentPlayerIndex: 0,
       actionsRemaining:   4,
-      turnPhase:          'actions',   // 'actions' | 'draw' | 'infect'
+      turnPhase:          'actions',
 
       players,
-
       diseaseCubes,
       researchStations: ['atlanta'],
 
@@ -97,29 +81,113 @@ class GameInstance {
         red:    { status: 'active', cubesRemaining: 24 - supplyUsed.red    },
       },
 
-      playerDeck: {
-        drawPile:    playerDrawPile,
-        discardPile: [],
-      },
-      infectionDeck: {
-        drawPile:    infectionDrawPile,
-        discardPile: infectionDiscardPile,
-      },
+      playerDeck:    { drawPile: playerDrawPile, discardPile: [] },
+      infectionDeck: { drawPile: infectionDrawPile, discardPile: infectionDiscardPile },
 
       outbreakCount:      0,
       infectionRateIndex: 0,
       infectionRate:      INFECTION_RATE_TRACK[0],
+      curesFound:         0,
 
-      curesFound: 0,
-
-      eventLog: [{
-        type:    'game-start',
-        message: `Game started with ${playerCount} players.`,
-      }],
+      eventLog: [{ type: 'game-start', message: `Game started with ${playerCount} players.` }],
     };
   }
 
-  // ── Public state (strips hidden deck contents) ────────────────────────────
+  // ── Perform a player action ──────────────────────────────────────────────────
+
+  performAction(socketId, actionData, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.turnPhase !== 'actions') {
+      return ack({ error: 'Actions are not available right now.' });
+    }
+
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== socketId) {
+      return ack({ error: 'It is not your turn.' });
+    }
+
+    try {
+      this.state = applyAction(this.state, socketId, actionData);
+    } catch (err) {
+      return ack({ error: err.message });
+    }
+
+    this.state.actionsRemaining--;
+
+    // Win check: all 4 diseases cured
+    if ((this.state.curesFound ?? 0) >= 4) {
+      this.state.phase = 'won';
+      this.broadcastState();
+      this.io?.to(this.roomCode).emit('game:over', { won: true });
+      return ack({ ok: true });
+    }
+
+    if (this.state.actionsRemaining <= 0) {
+      this.broadcastState();
+      setTimeout(() => this._runDrawAndInfect(), PHASE_DELAY);
+    } else {
+      this.broadcastState();
+    }
+
+    return ack({ ok: true });
+  }
+
+  // ── End turn early (use fewer than 4 actions) ────────────────────────────────
+
+  endTurn(socketId, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.turnPhase !== 'actions') {
+      return ack({ error: 'Cannot end turn right now.' });
+    }
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== socketId) {
+      return ack({ error: 'It is not your turn.' });
+    }
+
+    this.state.actionsRemaining = 0;
+    ack({ ok: true });
+    this.broadcastState();
+    setTimeout(() => this._runDrawAndInfect(), PHASE_DELAY);
+  }
+
+  // ── Draw → Infect → Next player ──────────────────────────────────────────────
+
+  _runDrawAndInfect() {
+    // ── Draw phase ────────────────────────────────────────────────────────────
+    this.state.turnPhase = 'draw';
+    this.state = runDrawPhase(this.state);
+    this.broadcastState();
+
+    if (this.state.phase !== 'playing') {
+      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
+      return;
+    }
+
+    // ── Infect phase ──────────────────────────────────────────────────────────
+    setTimeout(() => {
+      this.state.turnPhase = 'infect';
+      this.state = runInfectPhase(this.state);
+      this.broadcastState();
+
+      if (this.state.phase !== 'playing') {
+        this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
+        return;
+      }
+
+      // ── Advance to next player ─────────────────────────────────────────────
+      setTimeout(() => {
+        this.state = advanceToNextPlayer(this.state);
+        this.broadcastState();
+      }, PHASE_DELAY);
+
+    }, PHASE_DELAY);
+  }
+
+  // ── State delivery ────────────────────────────────────────────────────────────
 
   getPublicState() {
     const s = this.state;
@@ -136,14 +204,9 @@ class GameInstance {
     };
   }
 
-  // ── Broadcast full state to all players in room ───────────────────────────
-
   broadcastState() {
-    if (!this.io) return;
-    this.io.to(this.roomCode).emit('game:state', this.getPublicState());
+    this.io?.to(this.roomCode).emit('game:state', this.getPublicState());
   }
-
-  // ── Send state to a single socket (e.g. reconnecting player) ─────────────
 
   sendStateTo(socket) {
     socket.emit('game:state', this.getPublicState());

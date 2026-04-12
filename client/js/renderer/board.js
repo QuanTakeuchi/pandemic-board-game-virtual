@@ -23,7 +23,12 @@ const TRANS_ALPHA   = 0.55; // transpacific indicator opacity
  * @param {HTMLCanvasElement} canvas
  * @param {object|null} gameState  — null during Phase 2 (no game state yet)
  */
-export function drawBoard(canvas, gameState = null) {
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @param {object|null}       gameState
+ * @param {{ drive?: Set, flight?: Set }} [highlights]  — cities to ring
+ */
+export function drawBoard(canvas, gameState = null, highlights = {}) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;
@@ -31,6 +36,8 @@ export function drawBoard(canvas, gameState = null) {
   ctx.clearRect(0, 0, W, H);
   drawBackground(ctx, W, H);
   drawConnections(ctx, W, H);
+  if (highlights.drive  && highlights.drive.size)  drawHighlightRings(ctx, W, H, highlights.drive,  'rgba(255,255,255,0.55)');
+  if (highlights.flight && highlights.flight.size) drawHighlightRings(ctx, W, H, highlights.flight, 'rgba(74,144,217,0.7)');
   drawCities(ctx, W, H, gameState);
   if (gameState) drawDiseaseCubes(ctx, W, H, gameState);
 }
@@ -227,6 +234,26 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Highlight rings ───────────────────────────────────────────────────────────
+
+function drawHighlightRings(ctx, W, H, cityIds, color) {
+  const R = CITY_RADIUS + 5;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 2.5;
+  ctx.shadowColor = color;
+  ctx.shadowBlur  = 8;
+
+  for (const id of cityIds) {
+    const city = CITIES[id];
+    if (!city) continue;
+    ctx.beginPath();
+    ctx.arc(city.x * W, city.y * H, R, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ── Disease cubes ─────────────────────────────────────────────────────────────
