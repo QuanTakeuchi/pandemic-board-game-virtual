@@ -1,0 +1,273 @@
+/* ── Game page layout ──────────────────────────────────────────────────────── */
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────────────── */
+.game-topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 20px;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.topbar-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Outbreak counter */
+.outbreak-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.outbreak-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.outbreak-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s;
+}
+
+.outbreak-pip.active { background: var(--danger); }
+
+/* Infection rate */
+.infection-rate-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Cure indicators */
+.cure-indicators {
+  display: flex;
+  gap: 8px;
+}
+
+.cure-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.4;
+  transition: opacity 0.2s, background 0.2s;
+  position: relative;
+}
+
+.cure-dot.cured   { opacity: 1; }
+.cure-dot.eradicated { opacity: 1; }
+.cure-dot.eradicated::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cure-dot[data-color="blue"]   { color: var(--blue);   background: transparent; }
+.cure-dot[data-color="yellow"] { color: var(--yellow);  background: transparent; }
+.cure-dot[data-color="black"]  { color: #9090a0;        background: transparent; }
+.cure-dot[data-color="red"]    { color: var(--red);     background: transparent; }
+
+.cure-dot.cured[data-color="blue"]   { background: var(--blue); }
+.cure-dot.cured[data-color="yellow"] { background: var(--yellow); }
+.cure-dot.cured[data-color="black"]  { background: #9090a0; }
+.cure-dot.cured[data-color="red"]    { background: var(--red); }
+
+/* Room code chip */
+.room-code-chip {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+.room-code-chip span {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+/* ── Body (canvas + sidebar) ──────────────────────────────────────────────── */
+.game-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Canvas area ──────────────────────────────────────────────────────────── */
+.board-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0d1420;
+}
+
+#board-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+.game-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+/* ── Player cards in sidebar ─────────────────────────────────────────────── */
+.player-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-card {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+}
+
+.player-card.active-turn {
+  border-left-color: var(--accent);
+  background: #1e2a3a;
+}
+
+.player-card .p-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.player-card .p-role {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.player-card .p-location {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Actions remaining ───────────────────────────────────────────────────── */
+.actions-pip-row {
+  display: flex;
+  gap: 6px;
+}
+
+.action-pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.action-pip.used { opacity: 1; }
+
+/* ── Event log ───────────────────────────────────────────────────────────── */
+.event-log {
+  flex: 1;
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.event-log h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.log-entry {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+.log-entry:last-child { border-bottom: none; }
+
+.log-entry .log-player { color: var(--text); font-weight: 600; }
+.log-entry .log-city-blue   { color: var(--blue); }
+.log-entry .log-city-yellow { color: var(--yellow); }
+.log-entry .log-city-black  { color: #b0b0c0; }
+.log-entry .log-city-red    { color: var(--red); }
+
+/* ── Transpacific connection legend ──────────────────────────────────────── */
+.transpacific-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.transpacific-line-sample {
+  width: 28px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    to right,
+    rgba(255,255,255,0.5) 0, rgba(255,255,255,0.5) 4px,
+    transparent 4px, transparent 8px
+  );
+}
