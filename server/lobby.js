@@ -77,8 +77,11 @@ class LobbyManager {
 
       ack({ code });
 
-      // Deliver current game state immediately to the reconnected player
+      // Mirror the new socket id into the live game state so turn checks pass
       if (room.gameInstance) {
+        const gamePlayer = room.gameInstance.state.players.find(p => p.name === trimmedName);
+        if (gamePlayer) gamePlayer.id = socket.id;
+
         room.gameInstance.sendStateTo(socket);
       }
 
