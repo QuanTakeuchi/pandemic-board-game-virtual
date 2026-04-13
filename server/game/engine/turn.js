@@ -112,6 +112,9 @@ function _placeCubes(s, card, count, outbreakedCities) {
   // Eradicated diseases cannot spread
   if (s.diseases[color]?.status === 'eradicated') return;
 
+  // Quarantine Specialist: prevent cube placement in their city and adjacent cities
+  if (_isQuarantined(s, cityId)) return;
+
   if (!s.diseaseCubes[cityId]) {
     s.diseaseCubes[cityId] = { blue: 0, yellow: 0, black: 0, red: 0 };
   }
@@ -163,13 +166,25 @@ function _placeCubes(s, card, count, outbreakedCities) {
   s.eventLog.unshift({ type: 'infect', city: card.name, color });
 }
 
+// ── Quarantine Specialist helper ──────────────────────────────────────────────
+// Returns true if any QS player is in cityId or an adjacent city.
+
+function _isQuarantined(s, cityId) {
+  const qs = s.players.find(p => p.role === 'quarantine-specialist' && p.isConnected);
+  if (!qs) return false;
+  if (qs.location === cityId) return true;
+  const cityDef = CITIES[qs.location];
+  return cityDef?.connections.includes(cityId) ?? false;
+}
+
 // ── Advance to next player ────────────────────────────────────────────────────
 
 function advanceToNextPlayer(state) {
   const s = deepClone(state);
-  s.currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.length;
-  s.actionsRemaining   = 4;
-  s.turnPhase          = 'actions';
+  s.currentPlayerIndex    = (s.currentPlayerIndex + 1) % s.players.length;
+  s.actionsRemaining      = 4;
+  s.turnPhase             = 'actions';
+  s.opsFlightUsedThisTurn = false;   // reset Operations Expert once-per-turn ability
   return s;
 }
 

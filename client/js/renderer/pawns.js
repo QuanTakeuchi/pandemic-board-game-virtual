@@ -35,6 +35,8 @@ export function drawPawns(canvas, gameState) {
   const W   = canvas.width;
   const H   = canvas.height;
 
+  const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+
   // Group players by city so we can spread them out
   const byCityId = {};
   gameState.players.forEach(p => {
@@ -58,6 +60,21 @@ export function drawPawns(canvas, gameState) {
       const color = ROLE_COLORS[player.role] || '#ffffff';
       const label = ROLE_LABELS[player.role] || player.name[0].toUpperCase();
 
+      const isCurrentPlayer = player.id === currentPlayerId;
+
+      // Active-player glow ring
+      if (isCurrentPlayer) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(px, py, PAWN_RADIUS + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth   = 2;
+        ctx.shadowColor = 'rgba(255,255,255,0.9)';
+        ctx.shadowBlur  = 8;
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // Drop shadow
       ctx.save();
       ctx.shadowColor   = 'rgba(0,0,0,0.6)';
@@ -74,8 +91,8 @@ export function drawPawns(canvas, gameState) {
       // Border
       ctx.beginPath();
       ctx.arc(px, py, PAWN_RADIUS, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-      ctx.lineWidth   = 1.5;
+      ctx.strokeStyle = isCurrentPlayer ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)';
+      ctx.lineWidth   = isCurrentPlayer ? 2 : 1.5;
       ctx.stroke();
 
       // Role initial

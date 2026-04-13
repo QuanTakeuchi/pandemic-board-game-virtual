@@ -88,6 +88,7 @@ class GameInstance {
       infectionRateIndex: 0,
       infectionRate:      INFECTION_RATE_TRACK[0],
       curesFound:         0,
+      opsFlightUsedThisTurn: false,
 
       eventLog: [{ type: 'game-start', message: `Game started with ${playerCount} players.` }],
     };

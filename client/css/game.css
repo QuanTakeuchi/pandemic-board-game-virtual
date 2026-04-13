@@ -474,6 +474,17 @@
 /* ── Player card you-tag ─────────────────────────────────────────────────── */
 .you-tag { font-size: 11px; color: var(--muted); }
 
+/* ── Role ability blurb in player card ───────────────────────────────────── */
+.player-card .p-ability {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.35;
+  margin-top: 2px;
+  opacity: 0.75;
+  white-space: normal;
+  word-break: break-word;
+}
+
 /* ── Transpacific connection legend ──────────────────────────────────────── */
 .transpacific-legend {
   position: absolute;

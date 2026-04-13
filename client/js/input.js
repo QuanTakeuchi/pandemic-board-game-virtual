@@ -1,16 +1,12 @@
 // Canvas hit-testing and action popup for the game board.
 // On city click: determines which Pandemic actions are valid and shows a popup menu.
+// Phase 6: role-aware action detection for all 7 roles.
 
 import { CITIES } from './data/cities.js';
 
 const HIT_RADIUS = 16; // px — slightly larger than drawn city radius for easier clicking
 
 export class InputHandler {
-  /**
-   * @param {HTMLCanvasElement} canvas
-   * @param {HTMLElement}       popup   — the #action-popup DOM element
-   * @param {function}          onAction  — callback(type, params)
-   */
   constructor(canvas, popup, onAction) {
     this.canvas   = canvas;
     this.popup    = popup;
@@ -21,7 +17,6 @@ export class InputHandler {
     canvas.addEventListener('click',   e => this._onCanvasClick(e));
     canvas.style.cursor = 'crosshair';
 
-    // Close popup on outside click
     document.addEventListener('click', e => {
       if (!this.popup.contains(e.target) && e.target !== canvas) this._closePopup();
     });
@@ -66,7 +61,7 @@ export class InputHandler {
     const state = this.state;
     if (!state || state.phase !== 'playing') return this._closePopup();
 
-    const isMyTurn     = this.myPlayerIndex === state.currentPlayerIndex;
+    const isMyTurn      = this.myPlayerIndex === state.currentPlayerIndex;
     const isActionPhase = state.turnPhase === 'actions';
     if (!isMyTurn || !isActionPhase) return this._closePopup();
 
@@ -76,7 +71,6 @@ export class InputHandler {
     const actions = this._getValidActions(city, me, state);
     if (actions.length === 0) return this._closePopup();
 
-    // Build popup DOM
     const header = document.createElement('div');
     header.className = 'popup-city-name';
     header.textContent = city.name;
@@ -120,13 +114,13 @@ export class InputHandler {
   // ── Determine valid actions for a clicked city ─────────────────────────────
 
   _getValidActions(city, me, state) {
-    const actions   = [];
-    const isHere    = city.id === me.location;
-    const fromCity  = CITIES[me.location];
-    const cubes     = state.diseaseCubes[city.id] || {};
+    const actions  = [];
+    const isHere   = city.id === me.location;
+    const fromCity = CITIES[me.location];
+    const cubes    = state.diseaseCubes[city.id] || {};
 
     if (!isHere) {
-      // ── Movement actions ────────────────────────────────────────────────────
+      // ── Movement actions ──────────────────────────────────────────────────
 
       // Drive / Ferry
       if (fromCity?.connections.includes(city.id)) {
@@ -148,55 +142,120 @@ export class InputHandler {
         actions.push({ label: '🔬 Shuttle Flight', type: 'shuttle-flight', params: { cityId: city.id } });
       }
 
+      // ── Operations Expert: fly from a research station with any card ───────
+      if (me.role === 'operations-expert' &&
+          state.researchStations.includes(me.location) &&
+          !state.opsFlightUsedThisTurn) {
+        // Show one entry per card they could discard
+        me.hand.filter(c => c.type === 'city').forEach(c => {
+          actions.push({
+            label:  `🛸 Ops Flight (discard ${c.name})`,
+            type:   'ops-expert-flight',
+            params: { cityId: city.id, cardCityId: c.cityId },
+          });
+        });
+      }
+
+      // ── Dispatcher: move another player's pawn to this city ───────────────
+      if (me.role === 'dispatcher') {
+        state.players.forEach((other, i) => {
+          if (i === this.myPlayerIndex || !other.isConnected) return;
+          if (other.location === city.id) return; // already there
+          // Destination must have another pawn
+          const otherPawnThere = state.players.some(
+            p => p.id !== other.id && p.isConnected && p.location === city.id
+          );
+          if (otherPawnThere) {
+            actions.push({
+              label:  `🎯 Move ${other.name} here`,
+              type:   'dispatcher-move',
+              params: { targetPlayerId: other.id, cityId: city.id },
+            });
+          }
+        });
+      }
+
     } else {
-      // ── On-city actions ─────────────────────────────────────────────────────
+      // ── On-city actions ───────────────────────────────────────────────────
 
       // Treat Disease — one button per colour present
       for (const [color, count] of Object.entries(cubes)) {
         if (count > 0) {
-          actions.push({ label: `💊 Treat ${color} (${count})`, type: 'treat', params: { color } });
+          const isMedic = me.role === 'medic';
+          const isCured = state.diseases[color]?.status !== 'active';
+          const removeCount = (isMedic || isCured) ? count : 1;
+          const tag = isMedic && !isCured ? ' (Medic: all)' : isCured ? ` (all — cured)` : ` (${count})`;
+          actions.push({ label: `💊 Treat ${color}${tag}`, type: 'treat', params: { color } });
         }
       }
 
       // Build Research Station
-      if (!state.researchStations.includes(city.id) &&
-           me.hand.some(c => c.type === 'city' && c.cityId === city.id)) {
-        actions.push({ label: '🏗️ Build Research Station', type: 'build-station', params: {} });
+      if (!state.researchStations.includes(city.id)) {
+        const isOpsExpert = me.role === 'operations-expert';
+        const hasCard     = me.hand.some(c => c.type === 'city' && c.cityId === city.id);
+        if (isOpsExpert || hasCard) {
+          const tag = isOpsExpert ? ' (no card needed)' : '';
+          actions.push({ label: `🏗️ Build Research Station${tag}`, type: 'build-station', params: {} });
+        }
       }
 
-      // Discover Cure — at research station with ≥5 same-colour cards
+      // Discover Cure — at research station
       if (state.researchStations.includes(city.id)) {
-        const groups = {};
+        const required = me.role === 'scientist' ? 4 : 5;
+        const groups   = {};
         me.hand.forEach(c => {
           if (c.type === 'city') (groups[c.color] ??= []).push(c.cityId);
         });
         for (const [color, ids] of Object.entries(groups)) {
-          if (ids.length >= 5 && state.diseases[color]?.status === 'active') {
+          if (ids.length >= required && state.diseases[color]?.status === 'active') {
+            const tag = me.role === 'scientist' ? ' (Scientist: 4 cards)' : '';
             actions.push({
-              label:  `🧪 Discover Cure (${color})`,
+              label:  `🧪 Discover Cure (${color})${tag}`,
               type:   'cure',
-              params: { cardCityIds: ids.slice(0, 5) },
+              params: { cardCityIds: ids.slice(0, required) },
             });
           }
         }
       }
 
-      // Share Knowledge — co-located player
+      // Share Knowledge — co-located players
       state.players.forEach((other, i) => {
         if (i === this.myPlayerIndex || !other.isConnected) return;
         if (other.location !== me.location) return;
 
-        const iHaveCard    = me.hand.some(c  => c.type === 'city' && c.cityId === city.id);
-        const theyHaveCard = other.hand?.some(c => c.type === 'city' && c.cityId === city.id);
+        const iAmResearcher   = me.role === 'researcher';
+        const theyAreResearcher = other.role === 'researcher';
 
-        if (iHaveCard) {
-          actions.push({
-            label:  `🤝 Give ${city.name} → ${other.name}`,
-            type:   'share',
-            params: { targetPlayerId: other.id, cardCityId: city.id, direction: 'give' },
+        if (iAmResearcher) {
+          // Researcher can give ANY city card in hand
+          me.hand.filter(c => c.type === 'city').forEach(c => {
+            actions.push({
+              label:  `🤝 Give ${c.name} → ${other.name}`,
+              type:   'share',
+              params: { targetPlayerId: other.id, cardCityId: c.cityId, direction: 'give' },
+            });
           });
+        } else {
+          // Standard: give card matching current city
+          if (me.hand.some(c => c.type === 'city' && c.cityId === city.id)) {
+            actions.push({
+              label:  `🤝 Give ${city.name} → ${other.name}`,
+              type:   'share',
+              params: { targetPlayerId: other.id, cardCityId: city.id, direction: 'give' },
+            });
+          }
         }
-        if (theyHaveCard) {
+
+        // Take card matching current city (or any card if they're the Researcher)
+        if (theyAreResearcher) {
+          other.hand?.filter(c => c.type === 'city').forEach(c => {
+            actions.push({
+              label:  `🤝 Take ${c.name} ← ${other.name}`,
+              type:   'share',
+              params: { targetPlayerId: other.id, cardCityId: c.cityId, direction: 'take' },
+            });
+          });
+        } else if (other.hand?.some(c => c.type === 'city' && c.cityId === city.id)) {
           actions.push({
             label:  `🤝 Take ${city.name} ← ${other.name}`,
             type:   'share',
@@ -209,18 +268,28 @@ export class InputHandler {
     return actions;
   }
 
-  // ── Compute highlighted cities for board renderer ──────────────────────────
-  // Returns { drive: Set, flight: Set } based on current player's options.
+  // ── Highlight sets for board renderer ─────────────────────────────────────
+  // Returns { drive: Set, flight: Set, quarantine: Set } for board renderer.
 
   getHighlights() {
-    const empty = { drive: new Set(), flight: new Set() };
+    const empty = { drive: new Set(), flight: new Set(), quarantine: new Set() };
     if (!this.state || !this.state.players) return empty;
 
-    const isMyTurn     = this.myPlayerIndex === this.state.currentPlayerIndex;
+    // Quarantine Specialist aura — always visible for all players
+    const qs = this.state.players.find(p => p.role === 'quarantine-specialist' && p.isConnected);
+    if (qs) {
+      const qsCity = CITIES[qs.location];
+      if (qsCity) {
+        empty.quarantine.add(qs.location);
+        qsCity.connections.forEach(id => empty.quarantine.add(id));
+      }
+    }
+
+    const isMyTurn      = this.myPlayerIndex === this.state.currentPlayerIndex;
     const isActionPhase = this.state.turnPhase === 'actions';
     if (!isMyTurn || !isActionPhase) return empty;
 
-    const me       = this.state.players[this.myPlayerIndex];
+    const me = this.state.players[this.myPlayerIndex];
     if (!me) return empty;
 
     const fromCity = CITIES[me.location];
@@ -231,6 +300,6 @@ export class InputHandler {
       me.hand.filter(c => c.type === 'city' && c.cityId !== me.location).map(c => c.cityId)
     );
 
-    return { drive, flight };
+    return { drive, flight, quarantine: empty.quarantine };
   }
 }

@@ -73,6 +73,27 @@ function renderCureIndicators(diseases) {
   }
 }
 
+// Role colour map (must match server/game/data/roles.js pawnColor values)
+const ROLE_COLORS = {
+  'medic':                  '#f0a500',
+  'scientist':              '#e0e0e0',
+  'researcher':             '#c47a3a',
+  'operations-expert':      '#3cb371',
+  'dispatcher':             '#cc44cc',
+  'quarantine-specialist':  '#2e8b57',
+  'contingency-planner':    '#4a9ed9',
+};
+
+const ROLE_ABILITIES = {
+  'medic':                  'Removes all cubes when treating. Auto-cleans cured diseases.',
+  'scientist':              'Only 4 cards needed to cure a disease.',
+  'researcher':             'Can give any city card (not just current city).',
+  'operations-expert':      'Builds stations without a card. Once/turn: fly from any station.',
+  'dispatcher':             'Moves any pawn to a city occupied by another pawn.',
+  'quarantine-specialist':  'Prevents cube placement in current city + neighbours.',
+  'contingency-planner':    'Can retrieve event cards from the player discard pile.',
+};
+
 // ── Player cards ──────────────────────────────────────────────────────────────
 
 function renderPlayerCards(players, currentPlayerIndex, myPlayerIndex) {
@@ -85,17 +106,22 @@ function renderPlayerCards(players, currentPlayerIndex, myPlayerIndex) {
     const div = document.createElement('div');
     div.className = 'player-card' + (i === currentPlayerIndex ? ' active-turn' : '');
 
+    const roleColor = ROLE_COLORS[p.role] || 'var(--muted)';
+    div.style.borderLeftColor = roleColor;
+
     const connectedDot = p.isConnected
       ? '<span style="color:var(--success);font-size:10px;">●</span>'
       : '<span style="color:var(--muted);font-size:10px;">○</span>';
 
-    const youTag  = i === myPlayerIndex ? ' <span class="you-tag">(you)</span>' : '';
-    const roleStr = (p.role || 'no role').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const cityName = p.location ? p.location.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+    const youTag     = i === myPlayerIndex ? ' <span class="you-tag">(you)</span>' : '';
+    const roleStr    = (p.role || 'no role').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const cityName   = p.location ? p.location.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+    const abilityTip = ROLE_ABILITIES[p.role] || '';
 
     div.innerHTML = `
       <div class="p-name">${connectedDot} ${escapeHtml(p.name)}${youTag}</div>
-      <div class="p-role">${escapeHtml(roleStr)}</div>
+      <div class="p-role" style="color:${roleColor}">${escapeHtml(roleStr)}</div>
+      <div class="p-ability">${escapeHtml(abilityTip)}</div>
       <div class="p-location">📍 ${escapeHtml(cityName)} &nbsp;·&nbsp; ${p.hand?.length ?? 0} cards</div>
     `;
     container.appendChild(div);
@@ -171,6 +197,14 @@ function formatLogEntry(entry) {
       return `${p(entry.player)} discarded <span class="log-city-${entry.color || 'blue'}">${esc(entry.card)}</span>`;
     case 'draw':
       return `${p(entry.player)} drew <span class="log-city-blue">${esc(entry.card)}</span>`;
+    case 'ops-flight':
+      return `${p(entry.player)} used Ops Flight to ${c(entry.to, entry.color)}`;
+    case 'dispatcher-move':
+      return `${p(entry.player)} (Dispatcher) moved ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'medic-clean':
+      return `<span style="color:#f0a500">Medic</span> auto-removed <span class="log-city-${entry.color}">${entry.color}</span> cubes in ${cityLabel(entry.city)}`;
+    case 'eradicate':
+      return `<span style="color:var(--success)">✓ ERADICATED</span> <span class="log-city-${entry.color}">${entry.color}</span>`;
 
     case 'outbreak':
       return `<span class="log-outbreak">⚠ OUTBREAK</span> in <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
