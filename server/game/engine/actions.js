@@ -29,16 +29,31 @@ function medicAutoClean(s, playerId) {
   const cityId = player.location;
   if (!s.diseaseCubes[cityId]) return;
 
+  const cleanedColors = [];
+
   for (const [color, count] of Object.entries(s.diseaseCubes[cityId])) {
     if (count > 0 && s.diseases[color]?.status !== 'active') {
       s.diseases[color].cubesRemaining += count;
       s.diseaseCubes[cityId][color] = 0;
+      cleanedColors.push(color);
       logEvent(s, { type: 'medic-clean', player: player.name, city: cityId, color });
     }
   }
 
   if (Object.values(s.diseaseCubes[cityId]).every(v => v === 0)) {
     delete s.diseaseCubes[cityId];
+  }
+
+  // Eradication check: if all cubes of a cleaned colour are now gone from the
+  // entire board, the cured disease becomes eradicated.
+  for (const color of cleanedColors) {
+    if (s.diseases[color]?.status === 'cured') {
+      const remaining = Object.values(s.diseaseCubes).reduce((n, c) => n + (c[color] || 0), 0);
+      if (remaining === 0) {
+        s.diseases[color].status = 'eradicated';
+        logEvent(s, { type: 'eradicate', color });
+      }
+    }
   }
 }
 

@@ -305,6 +305,51 @@ function renderCardHand(hand) {
   });
 }
 
+// ── Available actions panel ───────────────────────────────────────────────────
+// Renders the sidebar list of all currently valid actions.
+// actions: array from getAvailableActions(); onAction: dispatch callback.
+
+export function renderAvailableActions(actions, onAction) {
+  const container = document.getElementById('available-actions');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  if (!actions || actions.length === 0) {
+    container.innerHTML = '<div class="avail-actions-empty">No actions — not your turn</div>';
+    return;
+  }
+
+  const hereActions = actions.filter(a => a.group === 'here');
+  const moveActions = actions.filter(a => a.group === 'move');
+
+  if (hereActions.length) {
+    _appendActionGroup(container, 'Here', hereActions, onAction);
+  }
+  if (moveActions.length) {
+    _appendActionGroup(container, 'Movement', moveActions, onAction);
+  }
+}
+
+function _appendActionGroup(container, title, actions, onAction) {
+  const header = document.createElement('div');
+  header.className = 'avail-action-group';
+  header.textContent = title;
+  container.appendChild(header);
+
+  actions.forEach(a => {
+    const isHint = a.params === null;
+    const btn = document.createElement('button');
+    btn.className = `avail-action-btn${isHint ? ' hint-only' : ''}`;
+    btn.textContent = a.label;
+    btn.title = a.label;
+    if (!isHint) {
+      btn.addEventListener('click', () => onAction(a.type, a.params));
+    }
+    container.appendChild(btn);
+  });
+}
+
 // ── Deck counts ───────────────────────────────────────────────────────────────
 
 function renderDeckCounts(state) {

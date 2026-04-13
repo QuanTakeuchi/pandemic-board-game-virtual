@@ -2,8 +2,8 @@
 
 import { drawBoard, resizeCanvas } from './renderer/board.js';
 import { drawPawns }               from './renderer/pawns.js';
-import { initHud, renderHud, renderEventLog } from './renderer/hud.js';
-import { InputHandler } from './input.js';
+import { initHud, renderHud, renderEventLog, renderAvailableActions } from './renderer/hud.js';
+import { InputHandler, getAvailableActions } from './input.js';
 
 // ── URL params ────────────────────────────────────────────────────────────────
 
@@ -62,6 +62,9 @@ socket.on('game:state', state => {
   if (state.eventLog) renderEventLog(state.eventLog);
 
   if (inputHandler) inputHandler.update(state, myPlayerIndex);
+
+  // Sidebar available-actions panel
+  renderAvailableActions(getAvailableActions(state, myPlayerIndex), dispatchAction);
 
   // Show / hide discard overlay
   updateDiscardOverlay(state, myPlayerIndex);

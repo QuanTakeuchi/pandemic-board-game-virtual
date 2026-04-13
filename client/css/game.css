@@ -474,6 +474,60 @@
 /* ── Player card you-tag ─────────────────────────────────────────────────── */
 .you-tag { font-size: 11px; color: var(--muted); }
 
+/* ── Available actions panel ─────────────────────────────────────────────── */
+#available-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.avail-action-group {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 0 3px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 4px;
+}
+.avail-action-group:first-child { margin-top: 0; }
+
+.avail-action-btn {
+  width: 100%;
+  padding: 6px 9px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, transform 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.avail-action-btn:hover:not(.hint-only) {
+  background: #1e2a3a;
+  transform: translateX(2px);
+}
+.avail-action-btn.hint-only {
+  color: var(--muted);
+  font-style: italic;
+  cursor: default;
+  background: transparent;
+  border-style: dashed;
+}
+
+.avail-actions-empty {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* ── Role ability blurb in player card ───────────────────────────────────── */
 .player-card .p-ability {
   font-size: 10px;
