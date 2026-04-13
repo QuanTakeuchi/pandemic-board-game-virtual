@@ -280,20 +280,45 @@ function drawHighlightRings(ctx, W, H, cityIds, color) {
 }
 
 // ── Disease cubes ─────────────────────────────────────────────────────────────
-// Cubes are drawn as small squares around the city node in a 4-quadrant layout:
-//   top-right = blue, bottom-right = yellow, bottom-left = black, top-left = red
+// Each colour occupies one quadrant around the city:
+//   blue = top-right  yellow = bottom-right  black = bottom-left  red = top-left
+//
+// Up to 3 individual cube squares are drawn per colour — no number labels.
+// Cubes are slightly larger and darker than city circles for easy reading.
 
-const CUBE_POSITIONS = {
+const CUBE_S    = 10;   // cube side length (px) — larger than city radius (7)
+const GAP       = 2;    // gap between cubes in a cluster
+const STEP      = CUBE_S + GAP;
+
+// Per-colour darker fill so cubes stand out against the board background
+const CUBE_COLORS = {
+  blue:   '#1a5fa8',
+  yellow: '#b8860b',
+  black:  '#38384a',
+  red:    '#a01515',
+};
+
+// Quadrant anchor direction for each colour
+const CUBE_DIR = {
   blue:   { dx:  1, dy: -1 },
   yellow: { dx:  1, dy:  1 },
   black:  { dx: -1, dy:  1 },
   red:    { dx: -1, dy: -1 },
 };
 
+// Relative [x, y] offsets (in px) for 1, 2, or 3 cubes within a cluster.
+// Origin is the cluster centre.
+const CUBE_LAYOUTS = {
+  1: [[0,       0     ]],
+  2: [[-STEP/2, 0     ], [ STEP/2,  0    ]],
+  3: [[-STEP,   STEP/2], [ 0,      -STEP/2], [ STEP, STEP/2]],
+};
+
+// Distance from city centre to cube cluster centre
+const CUBE_OFFSET = CITY_RADIUS + CUBE_S * 0.8;
+
 function drawDiseaseCubes(ctx, W, H, gameState) {
   const cubeMap = gameState.diseaseCubes || {};
-  const OFFSET  = CITY_RADIUS + 5;   // distance from city center
-  const CUBE_S  = 7;                  // cube square size in px
 
   for (const [cityId, cubes] of Object.entries(cubeMap)) {
     const city = CITIES[cityId];
@@ -305,27 +330,44 @@ function drawDiseaseCubes(ctx, W, H, gameState) {
     for (const [color, count] of Object.entries(cubes)) {
       if (!count || count <= 0) continue;
 
-      const pos    = CUBE_POSITIONS[color];
-      const cubeCx = cx + pos.dx * OFFSET;
-      const cubeCy = cy + pos.dy * OFFSET;
+      const dir     = CUBE_DIR[color];
+      const fill    = CUBE_COLORS[color] || COLOR_MAP[color];
+      // Anchor point: push cluster centre outward from city in the quadrant dir
+      const anchorX = cx + dir.dx * CUBE_OFFSET;
+      const anchorY = cy + dir.dy * CUBE_OFFSET;
 
-      // Cube fill
-      ctx.fillStyle = COLOR_MAP[color];
-      ctx.fillRect(cubeCx - CUBE_S / 2, cubeCy - CUBE_S / 2, CUBE_S, CUBE_S);
+      const layout  = CUBE_LAYOUTS[Math.min(count, 3)] || CUBE_LAYOUTS[1];
 
-      // Cube border
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-      ctx.lineWidth   = 1;
-      ctx.strokeRect(cubeCx - CUBE_S / 2, cubeCy - CUBE_S / 2, CUBE_S, CUBE_S);
+      layout.forEach(([ox, oy]) => {
+        const bx = anchorX + ox - CUBE_S / 2;
+        const by = anchorY + oy - CUBE_S / 2;
 
-      // Count label (only when > 1)
-      if (count > 1) {
-        ctx.font         = 'bold 8px "Segoe UI", sans-serif';
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle    = count >= 3 ? '#ff4444' : '#ffffff';
-        ctx.fillText(String(count), cubeCx, cubeCy);
-      }
+        // Drop shadow
+        ctx.save();
+        ctx.shadowColor   = 'rgba(0,0,0,0.55)';
+        ctx.shadowBlur    = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillStyle = fill;
+        ctx.fillRect(bx, by, CUBE_S, CUBE_S);
+        ctx.restore();
+
+        // Bright border so cubes pop against the dark board
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth   = 1.2;
+        ctx.strokeRect(bx, by, CUBE_S, CUBE_S);
+
+        // Inner highlight on top-left edge for a subtle 3-D look
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth   = 1;
+        ctx.beginPath();
+        ctx.moveTo(bx + 1,          by + CUBE_S - 1);
+        ctx.lineTo(bx + 1,          by + 1);
+        ctx.lineTo(bx + CUBE_S - 1, by + 1);
+        ctx.stroke();
+        ctx.restore();
+      });
     }
   }
 }
