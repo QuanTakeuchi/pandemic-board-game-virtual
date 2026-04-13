@@ -269,10 +269,12 @@ function share(state, playerId, { targetPlayerId, cardCityId, direction }) {
     logEvent(s, { type: 'share', player: player.name, target: target.name, city: cityId });
     return s;
   } else {
-    // Take: target must be Researcher OR card matches current city
+    // Take: allowed if I am the Researcher OR the target is the Researcher
+    // OR the card matches the current city (standard rule)
+    const iAmResearcher      = player.role === 'researcher';
     const isTargetResearcher = target.role === 'researcher';
-    if (!isTargetResearcher && cityId !== player.location) {
-      throw new Error('You can only take the city card matching your current location (unless they are the Researcher).');
+    if (!iAmResearcher && !isTargetResearcher && cityId !== player.location) {
+      throw new Error('You can only take the city card matching your current location (unless one of you is the Researcher).');
     }
     const idx = target.hand.findIndex(c => c.type === 'city' && c.cityId === cityId);
     if (idx === -1) throw new Error(`${target.name} does not have the ${CITIES[cityId].name} card.`);

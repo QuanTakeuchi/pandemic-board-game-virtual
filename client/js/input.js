@@ -246,8 +246,9 @@ export class InputHandler {
           }
         }
 
-        // Take card matching current city (or any card if they're the Researcher)
-        if (theyAreResearcher) {
+        // Take: any card if I am the Researcher OR they are the Researcher;
+        // otherwise only the card matching the current city
+        if (iAmResearcher || theyAreResearcher) {
           other.hand?.filter(c => c.type === 'city').forEach(c => {
             actions.push({
               label:  `🤝 Take ${c.name} ← ${other.name}`,

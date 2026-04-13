@@ -82,7 +82,9 @@ class LobbyManager {
         const gamePlayer = room.gameInstance.state.players.find(p => p.name === trimmedName);
         if (gamePlayer) gamePlayer.id = socket.id;
 
-        room.gameInstance.sendStateTo(socket);
+        // Broadcast to ALL players so nobody holds a stale player ID in their
+        // client state (stale IDs cause "Target player not found" on share actions)
+        room.gameInstance.broadcastState();
       }
 
       // Let others know this player is back
