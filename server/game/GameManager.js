@@ -28,20 +28,22 @@ class GameManager {
 
   registerHandlers(socket, lobbyManager) {
 
+    // Helper: look up the game for this socket
+    const getGame = () => {
+      const code = lobbyManager.socketToRoom.get(socket.id);
+      return code ? this.games.get(code) : null;
+    };
+
     // Client requests current game state (e.g. on page load / reconnect)
     socket.on('game:request-state', () => {
-      const code = lobbyManager.socketToRoom.get(socket.id);
-      if (!code) return;
-      const game = this.games.get(code);
+      const game = getGame();
       if (game) game.sendStateTo(socket);
     });
 
     // Player performs an action
     socket.on('game:action', (actionData, ack) => {
       if (typeof ack !== 'function') return;
-      const code = lobbyManager.socketToRoom.get(socket.id);
-      if (!code) return ack({ error: 'You are not in a room.' });
-      const game = this.games.get(code);
+      const game = getGame();
       if (!game) return ack({ error: 'Game not found.' });
       game.performAction(socket.id, actionData, ack);
     });
@@ -49,11 +51,17 @@ class GameManager {
     // Player voluntarily ends their turn early
     socket.on('game:end-turn', (ack) => {
       if (typeof ack !== 'function') return;
-      const code = lobbyManager.socketToRoom.get(socket.id);
-      if (!code) return ack({ error: 'You are not in a room.' });
-      const game = this.games.get(code);
+      const game = getGame();
       if (!game) return ack({ error: 'Game not found.' });
       game.endTurn(socket.id, ack);
+    });
+
+    // Player discards a card during the hand-limit discard phase
+    socket.on('game:discard-card', ({ cardCityId } = {}, ack) => {
+      if (typeof ack !== 'function') ack = () => {};
+      const game = getGame();
+      if (!game) return ack({ error: 'Game not found.' });
+      game.discardCard(socket.id, cardCityId, ack);
     });
   }
 }

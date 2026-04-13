@@ -141,24 +141,52 @@ export function renderEventLog(entries) {
 }
 
 function formatLogEntry(entry) {
+  const p  = (name) => `<span class="log-player">${esc(name)}</span>`;
+  const c  = (id, color) => `<span class="log-city-${color || 'blue'}">${cityLabel(id)}</span>`;
+
   switch (entry.type) {
+    case 'game-start':
+      return `<span style="color:var(--success)">${esc(entry.message)}</span>`;
+    case 'game-over':
+      return `<span style="color:var(--danger);font-weight:700;">${esc(entry.message)}</span>`;
+
     case 'move':
-      return `<span class="log-player">${esc(entry.player)}</span> moved to <span class="log-city-${entry.color || 'blue'}">${esc(entry.to)}</span>`;
+      return `${p(entry.player)} moved to ${c(entry.to, entry.color)}`;
+    case 'direct-flight':
+      return `${p(entry.player)} flew direct to ${c(entry.to, entry.color)}`;
+    case 'charter-flight':
+      return `${p(entry.player)} chartered a flight to ${c(entry.to, entry.color)}`;
+    case 'shuttle':
+      return `${p(entry.player)} shuttled to ${c(entry.to, entry.color)}`;
+
     case 'treat':
-      return `<span class="log-player">${esc(entry.player)}</span> treated ${entry.color} disease in <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
+      return `${p(entry.player)} treated <span class="log-city-${entry.color}">${entry.color}</span> in ${c(entry.city, entry.color)}`;
     case 'build':
-      return `<span class="log-player">${esc(entry.player)}</span> built a research station in <span class="log-city-${entry.color || 'blue'}">${esc(entry.city)}</span>`;
+      return `${p(entry.player)} built a station in ${c(entry.city, entry.color)}`;
     case 'cure':
-      return `<span class="log-player">${esc(entry.player)}</span> discovered a cure for <span class="log-city-${entry.color}">${entry.color}</span>!`;
+      return `${p(entry.player)} cured <span class="log-city-${entry.color}">${entry.color}</span>! 🎉`;
+    case 'share':
+      return `${p(entry.player)} shared ${cityLabel(entry.city)} with ${p(entry.target)}`;
+    case 'discard':
+      return `${p(entry.player)} discarded <span class="log-city-${entry.color || 'blue'}">${esc(entry.card)}</span>`;
+    case 'draw':
+      return `${p(entry.player)} drew <span class="log-city-blue">${esc(entry.card)}</span>`;
+
     case 'outbreak':
-      return `<span style="color:var(--danger)">OUTBREAK</span> in <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
+      return `<span class="log-outbreak">⚠ OUTBREAK</span> in <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
     case 'epidemic':
-      return `<span style="color:var(--danger)">EPIDEMIC!</span> ${esc(entry.city)} infected`;
+      return `<span class="log-epidemic">☣ EPIDEMIC</span> — <span class="log-city-${entry.color}">${esc(entry.city)}</span> infected`;
     case 'infect':
       return `Infected <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
+
     default:
       return esc(JSON.stringify(entry));
   }
+}
+
+// Convert a city id like "new-york" to "New York"
+function cityLabel(id) {
+  return String(id || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -181,29 +209,35 @@ function capitalize(str) {
 
 // ── Turn phase banner ─────────────────────────────────────────────────────────
 
-const PHASE_LABELS = {
-  actions: null,           // no banner during action phase
-  draw:    '📤 Drawing cards…',
-  infect:  '🦠 Infecting cities…',
-};
-
 function renderTurnBanner(state, myPlayerIndex) {
   const banner = document.getElementById('turn-banner');
   if (!banner) return;
 
-  const isMyTurn = myPlayerIndex === state.currentPlayerIndex;
-  const phase    = state.turnPhase;
-  const phaseMsg = PHASE_LABELS[phase];
-  const actionsLeft = state.actionsRemaining ?? 4;
+  const isMyTurn      = myPlayerIndex === state.currentPlayerIndex;
+  const phase         = state.turnPhase;
+  const actionsLeft   = state.actionsRemaining ?? 4;
+  const currentPlayer = state.players?.[state.currentPlayerIndex];
 
-  if (phaseMsg) {
-    banner.textContent = phaseMsg;
+  if (phase === 'draw') {
+    banner.textContent = '📤 Drawing cards…';
     banner.className   = 'turn-banner phase-banner';
+  } else if (phase === 'infect') {
+    banner.textContent = '🦠 Infecting cities…';
+    banner.className   = 'turn-banner phase-banner';
+  } else if (phase === 'discard') {
+    if (isMyTurn) {
+      const overBy = Math.max(0, (currentPlayer?.hand?.length ?? 8) - 7);
+      banner.textContent = `🃏 Discard ${overBy} card${overBy !== 1 ? 's' : ''}`;
+      banner.className   = 'turn-banner discard-banner';
+    } else {
+      banner.textContent = `${currentPlayer?.name || '…'} is discarding…`;
+      banner.className   = 'turn-banner other-turn';
+    }
   } else if (isMyTurn) {
     banner.textContent = `Your turn — ${actionsLeft} action${actionsLeft !== 1 ? 's' : ''} left`;
     banner.className   = 'turn-banner my-turn';
   } else {
-    const who = state.players?.[state.currentPlayerIndex]?.name || '…';
+    const who = currentPlayer?.name || '…';
     banner.textContent = `${who}'s turn`;
     banner.className   = 'turn-banner other-turn';
   }

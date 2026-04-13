@@ -57,16 +57,14 @@ socket.on('game:state', state => {
     if (myPlayerIndex === -1) myPlayerIndex = null;
   }
 
-  // Keep game-side player id in sync after reconnects
-  if (myPlayerIndex !== null && state.players[myPlayerIndex]) {
-    // Nothing extra needed — socket.id is already tracked server-side
-  }
-
   render();
   renderHud(state, myPlayerIndex);
   if (state.eventLog) renderEventLog(state.eventLog);
 
   if (inputHandler) inputHandler.update(state, myPlayerIndex);
+
+  // Show / hide discard overlay
+  updateDiscardOverlay(state, myPlayerIndex);
 });
 
 socket.on('game:over', ({ won, reason }) => showGameOver(won, reason));
@@ -91,6 +89,73 @@ document.getElementById('btn-end-turn')?.addEventListener('click', () => {
   });
 });
 
+// ── Discard overlay (hand-limit enforcement) ──────────────────────────────────
+
+const COLOR_HEX = { blue: '#4a90d9', yellow: '#e8c34a', black: '#9090a0', red: '#d94a4a' };
+let discardOverlay = null;
+
+function updateDiscardOverlay(state, myIdx) {
+  const isMyTurn    = myIdx !== null && myIdx === state.currentPlayerIndex;
+  const needDiscard = state.phase === 'playing' && state.turnPhase === 'discard' && isMyTurn;
+
+  if (!needDiscard) {
+    if (discardOverlay) { discardOverlay.remove(); discardOverlay = null; }
+    return;
+  }
+
+  const me     = state.players[myIdx];
+  const overBy = me.hand.length - 7;
+
+  if (overBy <= 0) {
+    if (discardOverlay) { discardOverlay.remove(); discardOverlay = null; }
+    return;
+  }
+
+  // Create overlay element once
+  if (!discardOverlay) {
+    discardOverlay = document.createElement('div');
+    discardOverlay.id = 'discard-overlay';
+    document.body.appendChild(discardOverlay);
+  }
+
+  discardOverlay.innerHTML = `
+    <div class="discard-box">
+      <div class="discard-title">Hand Limit Reached</div>
+      <div class="discard-subtitle">
+        You have <strong>${me.hand.length}</strong> cards — discard
+        <strong>${overBy}</strong> card${overBy !== 1 ? 's' : ''} to continue.
+      </div>
+      <div class="discard-cards" id="discard-card-list"></div>
+    </div>
+  `;
+
+  const list = discardOverlay.querySelector('#discard-card-list');
+
+  me.hand.forEach(card => {
+    if (card.type === 'epidemic') return; // epidemic cards stay (shouldn't happen mid-game)
+    const btn = document.createElement('button');
+    btn.className = 'discard-card-btn';
+    btn.style.borderLeftColor = COLOR_HEX[card.color] || '#888';
+    btn.innerHTML = `
+      <span class="discard-card-name">${escHtml(card.name || card.cityId)}</span>
+      <span class="discard-card-color" style="color:${COLOR_HEX[card.color] || '#888'}">${card.color}</span>
+    `;
+    btn.addEventListener('click', () => {
+      socket.emit('game:discard-card', { cardCityId: card.cityId }, res => {
+        if (res?.error) showToast(res.error, 'error');
+      });
+    });
+    list.appendChild(btn);
+  });
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // ── Toast notifications ───────────────────────────────────────────────────────
 
 function showToast(msg, type = 'info') {
@@ -108,6 +173,9 @@ function showToast(msg, type = 'info') {
 function showGameOver(won, reason) {
   const existing = document.getElementById('game-over-banner');
   if (existing) existing.remove();
+
+  // Remove discard overlay if showing
+  if (discardOverlay) { discardOverlay.remove(); discardOverlay = null; }
 
   const REASONS = {
     outbreaks: '8 outbreaks reached.',

@@ -3,7 +3,7 @@ const { INFECTION_CARDS } = require('./data/infection-cards');
 const { ROLES }           = require('./data/roles');
 const { shuffle, insertEpidemics } = require('./engine/deck');
 const { applyAction }    = require('./engine/actions');
-const { runDrawPhase, runInfectPhase, advanceToNextPlayer } = require('./engine/turn');
+const { runDrawPhase, runInfectPhase, advanceToNextPlayer, HAND_LIMIT } = require('./engine/turn');
 
 const STARTING_HAND_SIZE   = { 2: 4, 3: 3, 4: 2 };
 const INFECTION_RATE_TRACK = [2, 2, 2, 3, 3, 4, 4];
@@ -154,7 +154,45 @@ class GameInstance {
     setTimeout(() => this._runDrawAndInfect(), PHASE_DELAY);
   }
 
-  // ── Draw → Infect → Next player ──────────────────────────────────────────────
+  // ── Discard a card (hand-limit enforcement) ───────────────────────────────────
+  // Called when turnPhase === 'discard' and the current player needs to reduce
+  // their hand to ≤ HAND_LIMIT (7) cards.
+
+  discardCard(socketId, cardCityId, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.turnPhase !== 'discard') {
+      return ack({ error: 'Not in the discard phase.' });
+    }
+
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== socketId) {
+      return ack({ error: 'It is not your turn.' });
+    }
+
+    const cardIdx = currentPlayer.hand.findIndex(c => c.type === 'city' && c.cityId === cardCityId);
+    if (cardIdx === -1) {
+      return ack({ error: 'Card not in hand.' });
+    }
+
+    const [card] = currentPlayer.hand.splice(cardIdx, 1);
+    this.state.playerDeck.discardPile.push(card);
+    this.state.eventLog.unshift({ type: 'discard', player: currentPlayer.name, card: card.name, color: card.color });
+
+    ack({ ok: true });
+
+    if (currentPlayer.hand.length > HAND_LIMIT) {
+      // Still over limit — wait for another discard
+      this.broadcastState();
+    } else {
+      // Hand is now ≤ 7: proceed to infect phase after a short delay
+      this.broadcastState();
+      setTimeout(() => this._continueToInfect(), PHASE_DELAY);
+    }
+  }
+
+  // ── Draw → (Discard?) → Infect → Next player ─────────────────────────────────
 
   _runDrawAndInfect() {
     // ── Draw phase ────────────────────────────────────────────────────────────
@@ -167,23 +205,34 @@ class GameInstance {
       return;
     }
 
-    // ── Infect phase ──────────────────────────────────────────────────────────
-    setTimeout(() => {
-      this.state.turnPhase = 'infect';
-      this.state = runInfectPhase(this.state);
+    // ── Hand-limit check ──────────────────────────────────────────────────────
+    // If current player's hand exceeds 7, pause and wait for them to discard.
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (currentPlayer && currentPlayer.hand.length > HAND_LIMIT) {
+      this.state.turnPhase = 'discard';
       this.broadcastState();
+      // Execution will resume in discardCard() once hand ≤ HAND_LIMIT
+      return;
+    }
 
-      if (this.state.phase !== 'playing') {
-        this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
-        return;
-      }
+    // ── Infect phase (after delay) ────────────────────────────────────────────
+    setTimeout(() => this._continueToInfect(), PHASE_DELAY);
+  }
 
-      // ── Advance to next player ─────────────────────────────────────────────
-      setTimeout(() => {
-        this.state = advanceToNextPlayer(this.state);
-        this.broadcastState();
-      }, PHASE_DELAY);
+  _continueToInfect() {
+    this.state.turnPhase = 'infect';
+    this.state = runInfectPhase(this.state);
+    this.broadcastState();
 
+    if (this.state.phase !== 'playing') {
+      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
+      return;
+    }
+
+    // ── Advance to next player ────────────────────────────────────────────────
+    setTimeout(() => {
+      this.state = advanceToNextPlayer(this.state);
+      this.broadcastState();
     }, PHASE_DELAY);
   }
 
