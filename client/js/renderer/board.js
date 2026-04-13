@@ -36,6 +36,7 @@ export function drawBoard(canvas, gameState = null, highlights = {}) {
   ctx.clearRect(0, 0, W, H);
   drawBackground(ctx, W, H);
   drawConnections(ctx, W, H);
+  if (highlights.quarantine && highlights.quarantine.size) drawQuarantineAura(ctx, W, H, highlights.quarantine);
   if (highlights.drive  && highlights.drive.size)  drawHighlightRings(ctx, W, H, highlights.drive,  'rgba(255,255,255,0.55)');
   if (highlights.flight && highlights.flight.size) drawHighlightRings(ctx, W, H, highlights.flight, 'rgba(74,144,217,0.7)');
   drawCities(ctx, W, H, gameState);
@@ -234,6 +235,28 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Quarantine Specialist aura ────────────────────────────────────────────────
+// Draws a soft green fill behind each quarantined city.
+
+function drawQuarantineAura(ctx, W, H, cityIds) {
+  ctx.save();
+  for (const id of cityIds) {
+    const city = CITIES[id];
+    if (!city) continue;
+    const cx = city.x * W;
+    const cy = city.y * H;
+    const R  = CITY_RADIUS * 3.5;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    grad.addColorStop(0,   'rgba(46,139,87,0.28)');
+    grad.addColorStop(1,   'rgba(46,139,87,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // ── Highlight rings ───────────────────────────────────────────────────────────
