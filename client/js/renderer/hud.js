@@ -201,6 +201,14 @@ function formatLogEntry(entry) {
       return `${p(entry.player)} used Ops Flight to ${c(entry.to, entry.color)}`;
     case 'dispatcher-move':
       return `${p(entry.player)} (Dispatcher) moved ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'dispatcher-drive':
+      return `${p(entry.player)} (Dispatcher) drove ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'dispatcher-direct-flight':
+      return `${p(entry.player)} (Dispatcher) flew ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'dispatcher-charter-flight':
+      return `${p(entry.player)} (Dispatcher) chartered ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'dispatcher-shuttle':
+      return `${p(entry.player)} (Dispatcher) shuttled ${p(entry.target)} to ${c(entry.to, entry.color)}`;
     case 'medic-clean':
       return `<span style="color:#f0a500">Medic</span> auto-removed <span class="log-city-${entry.color}">${entry.color}</span> cubes in ${cityLabel(entry.city)}`;
     case 'eradicate':

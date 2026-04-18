@@ -360,13 +360,13 @@ function cure(state, playerId, { cardCityIds }) {
   return s;
 }
 
-// ── 9. Dispatcher Move ───────────────────────────────────────────────────────
+// ── 9. Dispatcher: move pawn to city with another pawn ───────────────────────
 // The Dispatcher may move ANY player's pawn to a city occupied by another pawn.
 // Costs 1 action.
 
 function dispatcherMove(state, playerId, { targetPlayerId, cityId }) {
   const dispatcher = findPlayer(state, playerId);
-  if (!dispatcher)             throw new Error('Player not found.');
+  if (!dispatcher)                      throw new Error('Player not found.');
   if (dispatcher.role !== 'dispatcher') throw new Error('Only the Dispatcher can use this action.');
 
   const target = findPlayer(state, targetPlayerId);
@@ -385,9 +385,101 @@ function dispatcherMove(state, playerId, { targetPlayerId, cityId }) {
   findPlayer(s, targetPlayerId).location = cityId;
   logEvent(s, { type: 'dispatcher-move', player: dispatcher.name, target: target.name, to: cityId, color: toCity.color });
 
-  // If the moved pawn belongs to the Medic, auto-clean
   if (target.role === 'medic') medicAutoClean(s, targetPlayerId);
 
+  return s;
+}
+
+// ── 10–13. Dispatcher "move as own" ──────────────────────────────────────────
+// The Dispatcher may move any OTHER player's pawn exactly as if it were their
+// own: drive, direct flight (using that player's card), charter flight (using
+// that player's card), or shuttle flight.
+// Each costs the Dispatcher 1 action. Cards are taken from the TARGET's hand.
+
+function dispatcherDrive(state, playerId, { targetPlayerId, cityId }) {
+  const dispatcher = findPlayer(state, playerId);
+  if (!dispatcher || dispatcher.role !== 'dispatcher') throw new Error('Only the Dispatcher can use this action.');
+  const target = findPlayer(state, targetPlayerId);
+  if (!target) throw new Error('Target player not found.');
+
+  const fromCity = CITIES[target.location];
+  const toCity   = CITIES[cityId];
+  if (!fromCity || !toCity) throw new Error('Invalid city.');
+  if (!fromCity.connections.includes(cityId)) throw new Error(`${toCity.name} is not connected to ${fromCity.name}.`);
+
+  const s = deepClone(state);
+  findPlayer(s, targetPlayerId).location = cityId;
+  logEvent(s, { type: 'dispatcher-drive', player: dispatcher.name, target: target.name, to: cityId, color: toCity.color });
+  if (target.role === 'medic') medicAutoClean(s, targetPlayerId);
+  return s;
+}
+
+function dispatcherDirectFlight(state, playerId, { targetPlayerId, cityId }) {
+  const dispatcher = findPlayer(state, playerId);
+  if (!dispatcher || dispatcher.role !== 'dispatcher') throw new Error('Only the Dispatcher can use this action.');
+  const target = findPlayer(state, targetPlayerId);
+  if (!target) throw new Error('Target player not found.');
+
+  const toCity = CITIES[cityId];
+  if (!toCity) throw new Error('Invalid destination city.');
+  if (target.location === cityId) throw new Error(`${target.name} is already in ${toCity.name}.`);
+
+  // Card comes from the TARGET player's hand
+  const cardIdx = target.hand.findIndex(c => c.type === 'city' && c.cityId === cityId);
+  if (cardIdx === -1) throw new Error(`${target.name} does not have the ${toCity.name} city card.`);
+
+  const s = deepClone(state);
+  const t = findPlayer(s, targetPlayerId);
+  const [card] = t.hand.splice(cardIdx, 1);
+  s.playerDeck.discardPile.push(card);
+  t.location = cityId;
+  logEvent(s, { type: 'dispatcher-direct-flight', player: dispatcher.name, target: target.name, to: cityId, color: toCity.color });
+  if (target.role === 'medic') medicAutoClean(s, targetPlayerId);
+  return s;
+}
+
+function dispatcherCharterFlight(state, playerId, { targetPlayerId, cityId }) {
+  const dispatcher = findPlayer(state, playerId);
+  if (!dispatcher || dispatcher.role !== 'dispatcher') throw new Error('Only the Dispatcher can use this action.');
+  const target = findPlayer(state, targetPlayerId);
+  if (!target) throw new Error('Target player not found.');
+
+  const from   = target.location;
+  const toCity = CITIES[cityId];
+  if (!toCity) throw new Error('Invalid destination city.');
+  if (from === cityId) throw new Error(`${target.name} is already in ${toCity.name}.`);
+
+  // Discard the TARGET's current-city card
+  const cardIdx = target.hand.findIndex(c => c.type === 'city' && c.cityId === from);
+  if (cardIdx === -1) throw new Error(`${target.name} needs the ${CITIES[from]?.name} card to charter a flight.`);
+
+  const s = deepClone(state);
+  const t = findPlayer(s, targetPlayerId);
+  const [card] = t.hand.splice(cardIdx, 1);
+  s.playerDeck.discardPile.push(card);
+  t.location = cityId;
+  logEvent(s, { type: 'dispatcher-charter-flight', player: dispatcher.name, target: target.name, from, to: cityId, color: toCity.color });
+  if (target.role === 'medic') medicAutoClean(s, targetPlayerId);
+  return s;
+}
+
+function dispatcherShuttleFlight(state, playerId, { targetPlayerId, cityId }) {
+  const dispatcher = findPlayer(state, playerId);
+  if (!dispatcher || dispatcher.role !== 'dispatcher') throw new Error('Only the Dispatcher can use this action.');
+  const target = findPlayer(state, targetPlayerId);
+  if (!target) throw new Error('Target player not found.');
+
+  const from   = target.location;
+  const toCity = CITIES[cityId];
+  if (!toCity) throw new Error('Invalid destination city.');
+  if (from === cityId) throw new Error(`${target.name} is already in ${toCity.name}.`);
+  if (!state.researchStations.includes(from))   throw new Error(`${CITIES[from]?.name} has no research station.`);
+  if (!state.researchStations.includes(cityId)) throw new Error(`${toCity.name} has no research station.`);
+
+  const s = deepClone(state);
+  findPlayer(s, targetPlayerId).location = cityId;
+  logEvent(s, { type: 'dispatcher-shuttle', player: dispatcher.name, target: target.name, to: cityId, color: toCity.color });
+  if (target.role === 'medic') medicAutoClean(s, targetPlayerId);
   return s;
 }
 
@@ -403,7 +495,11 @@ const HANDLERS = {
   'treat':             treat,
   'share':             share,
   'cure':              cure,
-  'dispatcher-move':   dispatcherMove,
+  'dispatcher-move':           dispatcherMove,
+  'dispatcher-drive':          dispatcherDrive,
+  'dispatcher-direct-flight':  dispatcherDirectFlight,
+  'dispatcher-charter-flight': dispatcherCharterFlight,
+  'dispatcher-shuttle':        dispatcherShuttleFlight,
 };
 
 function applyAction(state, playerId, actionData) {

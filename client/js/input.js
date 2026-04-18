@@ -49,7 +49,7 @@ function _computeActionsForCity(city, me, state, myPlayerIndex) {
       });
     }
 
-    // Dispatcher: move another player's pawn to a city occupied by someone else
+    // Dispatcher: move another pawn to a city with another pawn present
     if (me.role === 'dispatcher') {
       state.players.forEach((other, i) => {
         if (i === myPlayerIndex || !other.isConnected) return;
@@ -63,6 +63,33 @@ function _computeActionsForCity(city, me, state, myPlayerIndex) {
             type:   'dispatcher-move',
             params: { targetPlayerId: other.id, cityId: city.id },
           });
+        }
+      });
+    }
+
+    // Dispatcher: move any pawn "as if own" — drive, direct flight, charter, shuttle
+    if (me.role === 'dispatcher') {
+      state.players.forEach((other, i) => {
+        if (i === myPlayerIndex || !other.isConnected) return;
+        if (other.location === city.id) return;
+
+        const otherFromCity = CITIES[other.location];
+
+        // Drive
+        if (otherFromCity?.connections.includes(city.id)) {
+          actions.push({ label: `🚶 Drive ${other.name} here`, type: 'dispatcher-drive', params: { targetPlayerId: other.id, cityId: city.id } });
+        }
+        // Direct Flight (use target's card)
+        if (other.hand?.some(c => c.type === 'city' && c.cityId === city.id)) {
+          actions.push({ label: `✈️ Fly ${other.name} here (their card)`, type: 'dispatcher-direct-flight', params: { targetPlayerId: other.id, cityId: city.id } });
+        }
+        // Charter Flight (use target's current-city card)
+        if (other.hand?.some(c => c.type === 'city' && c.cityId === other.location)) {
+          actions.push({ label: `🗺️ Charter ${other.name} here (their card)`, type: 'dispatcher-charter-flight', params: { targetPlayerId: other.id, cityId: city.id } });
+        }
+        // Shuttle Flight
+        if (state.researchStations.includes(other.location) && state.researchStations.includes(city.id)) {
+          actions.push({ label: `🔬 Shuttle ${other.name} here`, type: 'dispatcher-shuttle', params: { targetPlayerId: other.id, cityId: city.id } });
         }
       });
     }
@@ -263,22 +290,45 @@ export function getAvailableActions(state, myPlayerIndex) {
     actions.push({ group: 'move', label: `🛸 Ops Flight available — click city`, type: 'ops-hint', params: null });
   }
 
-  // Dispatcher — move other pawns to cities with another pawn
+  // Dispatcher — all pawn-movement abilities
   if (me.role === 'dispatcher') {
-    const seen = new Set();
     state.players.forEach((other, i) => {
       if (i === myPlayerIndex || !other.isConnected) return;
-      state.players.forEach((atDest) => {
-        if (!atDest.isConnected || atDest.id === other.id) return;
-        if (atDest.location === other.location) return;
-        const key = `${other.id}|${atDest.location}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        const dest = CITIES[atDest.location];
-        if (dest) {
-          actions.push({ group: 'move', label: `🎯 Move ${other.name} to ${dest.name}`, type: 'dispatcher-move', params: { targetPlayerId: other.id, cityId: atDest.location } });
-        }
+      const otherFromCity = CITIES[other.location];
+
+      // Move to city with another pawn
+      const pawnCities = new Set(
+        state.players.filter(p => p.id !== other.id && p.isConnected).map(p => p.location)
+      );
+      pawnCities.forEach(destId => {
+        if (destId === other.location) return;
+        const dest = CITIES[destId];
+        if (dest) actions.push({ group: 'move', label: `🎯 Move ${other.name} to ${dest.name}`, type: 'dispatcher-move', params: { targetPlayerId: other.id, cityId: destId } });
       });
+
+      // Drive
+      otherFromCity?.connections.forEach(destId => {
+        const dest = CITIES[destId];
+        if (dest) actions.push({ group: 'move', label: `🚶 Drive ${other.name} to ${dest.name}`, type: 'dispatcher-drive', params: { targetPlayerId: other.id, cityId: destId } });
+      });
+
+      // Direct Flight (target's cards)
+      other.hand?.filter(c => c.type === 'city' && c.cityId !== other.location).forEach(c => {
+        actions.push({ group: 'move', label: `✈️ Fly ${other.name} to ${c.name}`, type: 'dispatcher-direct-flight', params: { targetPlayerId: other.id, cityId: c.cityId } });
+      });
+
+      // Charter Flight
+      if (other.hand?.some(c => c.type === 'city' && c.cityId === other.location)) {
+        actions.push({ group: 'move', label: `🗺️ Charter ${other.name} anywhere — click city`, type: 'dispatcher-charter-hint', params: null });
+      }
+
+      // Shuttle
+      if (state.researchStations.includes(other.location)) {
+        state.researchStations.filter(id => id !== other.location).forEach(id => {
+          const dest = CITIES[id];
+          if (dest) actions.push({ group: 'move', label: `🔬 Shuttle ${other.name} to ${dest.name}`, type: 'dispatcher-shuttle', params: { targetPlayerId: other.id, cityId: id } });
+        });
+      }
     });
   }
 

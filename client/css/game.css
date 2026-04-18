@@ -497,18 +497,19 @@
 
 .avail-action-btn {
   width: 100%;
-  padding: 6px 9px;
+  padding: 7px 9px;
   text-align: left;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
   font-size: 12px;
+  line-height: 1.4;
+  height: auto;
+  white-space: normal;
+  word-break: break-word;
   cursor: pointer;
   transition: background 0.1s, transform 0.1s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .avail-action-btn:hover:not(.hint-only) {
   background: #1e2a3a;
