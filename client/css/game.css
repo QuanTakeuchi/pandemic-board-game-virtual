@@ -562,3 +562,113 @@
     transparent 4px, transparent 8px
   );
 }
+
+/* ── Infection animation overlay ─────────────────────────────────────────── */
+.infection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.infection-overlay.hidden { display: none; }
+
+/* ── Infect card ─────────────────────────────────────────────────────────── */
+.infect-card {
+  background: var(--surface);
+  border: 3px solid #555;
+  border-radius: 18px;
+  padding: 32px 48px;
+  min-width: 240px;
+  text-align: center;
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
+  /* Initial state — hidden, shifted down */
+  opacity: 0;
+  transform: translateY(28px) scale(0.84);
+  transition: opacity 0.28s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Enter */
+.infect-card.infect-card-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Exit */
+.infect-card.infect-card-exit {
+  opacity: 0;
+  transform: translateY(-18px) scale(0.93);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+/* ── Per-disease colour variants ─────────────────────────────────────────── */
+.infect-card--blue {
+  border-color: #4a90d9;
+  box-shadow: 0 12px 60px rgba(74, 144, 217, 0.4);
+}
+.infect-card--yellow {
+  border-color: #c9a830;
+  box-shadow: 0 12px 60px rgba(200, 168, 48, 0.4);
+}
+.infect-card--black {
+  border-color: #8888a0;
+  box-shadow: 0 12px 60px rgba(136, 136, 160, 0.35);
+}
+.infect-card--red {
+  border-color: #d94a4a;
+  box-shadow: 0 12px 60px rgba(217, 74, 74, 0.4);
+}
+
+/* ── Outbreak variant ────────────────────────────────────────────────────── */
+.infect-card--outbreak {
+  border-color: #f0a500;
+  background: #160f00;
+  box-shadow: 0 12px 60px rgba(240, 165, 0, 0.45),
+              0 0 80px rgba(240, 165, 0, 0.12);
+}
+
+/* ── Epidemic variant ────────────────────────────────────────────────────── */
+.infect-card--epidemic {
+  border-color: #ff4444;
+  background: #160000;
+  box-shadow: 0 12px 60px rgba(255, 68, 68, 0.55),
+              0 0 100px rgba(255, 68, 68, 0.18);
+}
+
+/* ── Card content ────────────────────────────────────────────────────────── */
+.infect-card-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.infect-card-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* Label colour per variant */
+.infect-card--blue   .infect-card-label { color: #4a90d9; }
+.infect-card--yellow .infect-card-label { color: #c9a830; }
+.infect-card--black  .infect-card-label { color: #8888a0; }
+.infect-card--red    .infect-card-label { color: #d94a4a; }
+.infect-card--outbreak  .infect-card-label { color: #f0a500; }
+.infect-card--epidemic  .infect-card-label { color: #ff6666; }
+
+.infect-card-city {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}

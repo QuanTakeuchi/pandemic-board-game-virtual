@@ -1,9 +1,10 @@
 // ── Game client entry point ───────────────────────────────────────────────────
 
-import { drawBoard, resizeCanvas } from './renderer/board.js';
-import { drawPawns }               from './renderer/pawns.js';
+import { drawBoard, resizeCanvas }    from './renderer/board.js';
+import { drawPawns }                  from './renderer/pawns.js';
 import { initHud, renderHud, renderEventLog, renderAvailableActions } from './renderer/hud.js';
 import { InputHandler, getAvailableActions } from './input.js';
+import { InfectionAnimator }          from './renderer/infection-anim.js';
 
 // ── URL params ────────────────────────────────────────────────────────────────
 
@@ -17,9 +18,9 @@ if (!roomCode) window.location.href = '/';
 
 const canvas = document.getElementById('board-canvas');
 
-let currentState     = null;
-let myPlayerIndex    = null;
-let inputHandler     = null;
+let currentState   = null;
+let myPlayerIndex  = null;
+let inputHandler   = null;
 
 function render() {
   resizeCanvas(canvas);
@@ -36,6 +37,98 @@ window.addEventListener('resize', render);
 
 initHud(roomCode);
 
+// ── Animation + state queue ───────────────────────────────────────────────────
+
+const animator         = new InfectionAnimator();
+let   stateQueue       = [];
+let   isAnimating      = false;
+let   prevGameState    = null;   // state as of last fully-applied update
+let   prevEventLogLen  = 0;      // eventLog.length at last fully-applied update
+
+// Called whenever a new game:state arrives or when an animation finishes.
+function _processQueue() {
+  if (isAnimating || !stateQueue.length) return;
+
+  const state = stateQueue.shift();
+
+  // Resolve which player slot is ours (once)
+  if (myPlayerIndex === null && state.players?.length) {
+    myPlayerIndex = state.players.findIndex(p => p.name === myName);
+    if (myPlayerIndex === -1) myPlayerIndex = null;
+  }
+
+  // Always update HUD, log, sidebar and discard overlay immediately —
+  // these don't depend on the progressive board render.
+  renderHud(state, myPlayerIndex);
+  if (state.eventLog) renderEventLog(state.eventLog);
+  if (inputHandler)   inputHandler.update(state, myPlayerIndex);
+  renderAvailableActions(getAvailableActions(state, myPlayerIndex), dispatchAction);
+  updateDiscardOverlay(state, myPlayerIndex);
+
+  // ── Determine new animation events ────────────────────────────────────────
+  const newLogLen   = state.eventLog?.length ?? 0;
+  const newCount    = Math.max(0, newLogLen - prevEventLogLen);
+
+  // New events are at the front (unshift → newest first); reverse for chronological order.
+  const animEvents = prevGameState !== null && newCount > 0
+    ? (state.eventLog ?? [])
+        .slice(0, newCount)
+        .reverse()
+        .filter(e => ['infect', 'outbreak', 'epidemic'].includes(e.type))
+    : [];
+
+  // ── No animation: apply immediately ───────────────────────────────────────
+  if (!animEvents.length) {
+    currentState   = state;
+    render();
+    prevGameState   = state;
+    prevEventLogLen = newLogLen;
+    _processQueue();
+    return;
+  }
+
+  // ── Animated path ─────────────────────────────────────────────────────────
+  isAnimating = true;
+
+  // Start the board from the state BEFORE these new events so cubes appear one-by-one.
+  const workingCubes = JSON.parse(JSON.stringify(prevGameState.diseaseCubes || {}));
+
+  // Show the board at its pre-infect state immediately (so it doesn't jump)
+  currentState = { ...state, diseaseCubes: JSON.parse(JSON.stringify(workingCubes)) };
+  render();
+
+  animator.animate(
+    animEvents,
+
+    // onCubePlace — called after each card exits; update the progressive board.
+    (ev) => {
+      if (ev.type === 'infect') {
+        const { cityId, color, count = 1 } = ev;
+        if (!workingCubes[cityId]) {
+          workingCubes[cityId] = { blue: 0, yellow: 0, black: 0, red: 0 };
+        }
+        workingCubes[cityId][color] = Math.min(3,
+          (workingCubes[cityId][color] || 0) + count
+        );
+        // Re-render board with the newly-placed cube(s)
+        currentState = { ...state, diseaseCubes: JSON.parse(JSON.stringify(workingCubes)) };
+        render();
+      }
+      // outbreak / epidemic: no extra cube change — cascades are individual infect events
+    },
+
+    // onDone — reveal the canonical final state
+    () => {
+      currentState   = state;
+      render();
+      prevGameState   = state;
+      prevEventLogLen = newLogLen;
+      isAnimating     = false;
+      _processQueue();
+    }
+  );
+}
+
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
 
 const socket = io();
@@ -49,25 +142,8 @@ socket.on('connect', () => {
 });
 
 socket.on('game:state', state => {
-  currentState = state;
-
-  // Resolve which player we are (by name)
-  if (myPlayerIndex === null && state.players?.length) {
-    myPlayerIndex = state.players.findIndex(p => p.name === myName);
-    if (myPlayerIndex === -1) myPlayerIndex = null;
-  }
-
-  render();
-  renderHud(state, myPlayerIndex);
-  if (state.eventLog) renderEventLog(state.eventLog);
-
-  if (inputHandler) inputHandler.update(state, myPlayerIndex);
-
-  // Sidebar available-actions panel
-  renderAvailableActions(getAvailableActions(state, myPlayerIndex), dispatchAction);
-
-  // Show / hide discard overlay
-  updateDiscardOverlay(state, myPlayerIndex);
+  stateQueue.push(state);
+  _processQueue();
 });
 
 socket.on('game:over', ({ won, reason }) => showGameOver(won, reason));
@@ -135,7 +211,7 @@ function updateDiscardOverlay(state, myIdx) {
   const list = discardOverlay.querySelector('#discard-card-list');
 
   me.hand.forEach(card => {
-    if (card.type === 'epidemic') return; // epidemic cards stay (shouldn't happen mid-game)
+    if (card.type === 'epidemic') return;
     const btn = document.createElement('button');
     btn.className = 'discard-card-btn';
     btn.style.borderLeftColor = COLOR_HEX[card.color] || '#888';
@@ -177,7 +253,6 @@ function showGameOver(won, reason) {
   const existing = document.getElementById('game-over-banner');
   if (existing) existing.remove();
 
-  // Remove discard overlay if showing
   if (discardOverlay) { discardOverlay.remove(); discardOverlay = null; }
 
   const REASONS = {

@@ -74,9 +74,10 @@ function _resolveEpidemic(s, epidemicCard) {
   s.playerDeck.discardPile.push(epidemicCard);
 
   s.eventLog.unshift({
-    type:  'epidemic',
-    city:  epicCity?.name  || '?',
-    color: epicCity?.color || '?',
+    type:   'epidemic',
+    city:   epicCity?.name   || '?',
+    cityId: epicCity?.cityId || '?',
+    color:  epicCity?.color  || '?',
   });
 }
 
@@ -128,7 +129,7 @@ function _placeCubes(s, card, count, outbreakedCities) {
 
     s.outbreakCount++;
     outbreakedCities.add(cityId);
-    s.eventLog.unshift({ type: 'outbreak', city: card.name, color });
+    s.eventLog.unshift({ type: 'outbreak', city: card.name, cityId, color });
 
     if (s.outbreakCount >= MAX_OUTBREAKS) {
       s.phase      = 'lost';
@@ -163,7 +164,7 @@ function _placeCubes(s, card, count, outbreakedCities) {
 
   s.diseaseCubes[cityId][color]    += toAdd;
   s.diseases[color].cubesRemaining -= toAdd;
-  s.eventLog.unshift({ type: 'infect', city: card.name, color });
+  s.eventLog.unshift({ type: 'infect', city: card.name, cityId, color, count: toAdd });
 }
 
 // ── Quarantine Specialist helper ──────────────────────────────────────────────
