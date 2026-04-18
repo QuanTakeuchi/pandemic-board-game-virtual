@@ -37,6 +37,84 @@ window.addEventListener('resize', render);
 
 initHud(roomCode);
 
+// ── Deck widgets ──────────────────────────────────────────────────────────────
+
+const deckPlayerEl    = document.getElementById('deck-player');
+const deckInfectionEl = document.getElementById('deck-infection');
+
+function updateDeckWidgets(state, myIdx) {
+  if (!state) return;
+
+  const isMyTurn = myIdx !== null && myIdx === state.currentPlayerIndex;
+  const phase    = state.turnPhase;
+
+  // Update counts
+  const pc = document.getElementById('deck-player-count');
+  const ic = document.getElementById('deck-infection-count');
+  if (pc) pc.textContent = state.playerDeck?.drawPileCount ?? '—';
+  if (ic) ic.textContent = state.infectionDeck?.drawPileCount ?? '—';
+
+  // Player deck: active when it's my turn + draw phase
+  if (deckPlayerEl) {
+    const active = isMyTurn && phase === 'draw';
+    deckPlayerEl.classList.toggle('deck-widget-active', active);
+    deckPlayerEl.classList.toggle('deck-widget-waiting', !isMyTurn && phase === 'draw');
+  }
+
+  // Infection deck: active when it's my turn + infect phase
+  if (deckInfectionEl) {
+    const active = isMyTurn && phase === 'infect';
+    deckInfectionEl.classList.toggle('deck-widget-active', active);
+    deckInfectionEl.classList.toggle('deck-widget-waiting', !isMyTurn && phase === 'infect');
+  }
+}
+
+// ── Card-fly animation ────────────────────────────────────────────────────────
+// Animate `count` card backs flying from `fromEl` to `toEl`.
+
+function flyCards(fromEl, toEl, count) {
+  if (!fromEl || !toEl) return;
+
+  const fromRect = fromEl.getBoundingClientRect();
+  const toRect   = toEl.getBoundingClientRect();
+
+  const CARD_W = 52;
+  const CARD_H = 72;
+
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const card = document.createElement('div');
+      card.className = 'flying-card';
+
+      // Start: centred on the source deck
+      const startX = fromRect.left + fromRect.width  / 2 - CARD_W / 2;
+      const startY = fromRect.top  + fromRect.height / 2 - CARD_H / 2;
+
+      // End: centred on the destination element
+      const endX = toRect.left + toRect.width  / 2 - CARD_W / 2;
+      const endY = toRect.top  + toRect.height / 2 - CARD_H / 2;
+
+      card.style.cssText = `
+        left: ${startX}px;
+        top:  ${startY}px;
+        width: ${CARD_W}px;
+        height: ${CARD_H}px;
+      `;
+      document.body.appendChild(card);
+
+      // Kick off CSS transition on the next two frames
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        card.style.left      = `${endX}px`;
+        card.style.top       = `${endY}px`;
+        card.style.opacity   = '0';
+        card.style.transform = `rotate(0deg) scale(0.65)`;
+      }));
+
+      setTimeout(() => card.remove(), 500);
+    }, i * 180);
+  }
+}
+
 // ── Animation + state queue ───────────────────────────────────────────────────
 
 const animator         = new InfectionAnimator();
@@ -64,6 +142,7 @@ function _processQueue() {
   if (inputHandler)   inputHandler.update(state, myPlayerIndex);
   renderAvailableActions(getAvailableActions(state, myPlayerIndex), dispatchAction);
   updateDiscardOverlay(state, myPlayerIndex);
+  updateDeckWidgets(state, myPlayerIndex);
 
   // ── Determine new animation events ────────────────────────────────────────
   const newLogLen   = state.eventLog?.length ?? 0;
@@ -164,6 +243,30 @@ function dispatchAction(type, params) {
 // End Turn button
 document.getElementById('btn-end-turn')?.addEventListener('click', () => {
   socket.emit('game:end-turn', res => {
+    if (res?.error) showToast(res.error, 'error');
+  });
+});
+
+// ── Player deck click: draw 2 cards ───────────────────────────────────────────
+
+deckPlayerEl?.addEventListener('click', () => {
+  if (!deckPlayerEl.classList.contains('deck-widget-active')) return;
+
+  // Fly 2 card backs to the hand panel before the state arrives
+  const handPanel = document.getElementById('card-hand');
+  flyCards(deckPlayerEl, handPanel, 2);
+
+  socket.emit('game:draw-cards', res => {
+    if (res?.error) showToast(res.error, 'error');
+  });
+});
+
+// ── Infection deck click: run infect phase ────────────────────────────────────
+
+deckInfectionEl?.addEventListener('click', () => {
+  if (!deckInfectionEl.classList.contains('deck-widget-active')) return;
+
+  socket.emit('game:run-infect', res => {
     if (res?.error) showToast(res.error, 'error');
   });
 });

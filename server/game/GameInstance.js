@@ -8,9 +8,6 @@ const { runDrawPhase, runInfectPhase, advanceToNextPlayer, HAND_LIMIT } = requir
 const STARTING_HAND_SIZE   = { 2: 4, 3: 3, 4: 2 };
 const INFECTION_RATE_TRACK = [2, 2, 2, 3, 3, 4, 4];
 
-// Delay (ms) between automatic phase transitions so clients can read the board
-const PHASE_DELAY = 1200;
-
 class GameInstance {
   constructor(room, options = {}) {
     this.roomCode = room.code;
@@ -126,12 +123,11 @@ class GameInstance {
     }
 
     if (this.state.actionsRemaining <= 0) {
-      this.broadcastState();
-      setTimeout(() => this._runDrawAndInfect(), PHASE_DELAY);
-    } else {
-      this.broadcastState();
+      // Actions exhausted — move to draw phase and wait for player to click the deck
+      this.state.turnPhase = 'draw';
     }
 
+    this.broadcastState();
     return ack({ ok: true });
   }
 
@@ -150,14 +146,79 @@ class GameInstance {
     }
 
     this.state.actionsRemaining = 0;
+    this.state.turnPhase = 'draw';
     ack({ ok: true });
     this.broadcastState();
-    setTimeout(() => this._runDrawAndInfect(), PHASE_DELAY);
+  }
+
+  // ── Draw 2 player cards (interactive — triggered by clicking the player deck) ─
+
+  drawCards(socketId, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.turnPhase !== 'draw') {
+      return ack({ error: 'Not in the draw phase.' });
+    }
+
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== socketId) {
+      return ack({ error: 'It is not your turn.' });
+    }
+
+    this.state = runDrawPhase(this.state);
+    ack({ ok: true });
+
+    if (this.state.phase !== 'playing') {
+      this.broadcastState();
+      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
+      return;
+    }
+
+    // Hand-limit check: pause at discard phase if over 7 cards
+    const cp = this.state.players[this.state.currentPlayerIndex];
+    if (cp && cp.hand.length > HAND_LIMIT) {
+      this.state.turnPhase = 'discard';
+      this.broadcastState();
+      return; // will resume in discardCard() once hand ≤ HAND_LIMIT
+    }
+
+    // Ready for infect phase — wait for player to click the infection deck
+    this.state.turnPhase = 'infect';
+    this.broadcastState();
+  }
+
+  // ── Run infect phase (interactive — triggered by clicking the infection deck) ──
+
+  runInfect(socketId, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.turnPhase !== 'infect') {
+      return ack({ error: 'Not in the infect phase.' });
+    }
+
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== socketId) {
+      return ack({ error: 'It is not your turn.' });
+    }
+
+    this.state = runInfectPhase(this.state);
+
+    if (this.state.phase !== 'playing') {
+      this.broadcastState();
+      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
+      ack({ ok: true });
+      return;
+    }
+
+    // Advance to next player
+    this.state = advanceToNextPlayer(this.state);
+    ack({ ok: true });
+    this.broadcastState();
   }
 
   // ── Discard a card (hand-limit enforcement) ───────────────────────────────────
-  // Called when turnPhase === 'discard' and the current player needs to reduce
-  // their hand to ≤ HAND_LIMIT (7) cards.
 
   discardCard(socketId, cardCityId, ack) {
     if (this.state.phase !== 'playing') {
@@ -187,54 +248,10 @@ class GameInstance {
       // Still over limit — wait for another discard
       this.broadcastState();
     } else {
-      // Hand is now ≤ 7: proceed to infect phase after a short delay
+      // Hand is now ≤ 7: move to infect phase, wait for player to click infection deck
+      this.state.turnPhase = 'infect';
       this.broadcastState();
-      setTimeout(() => this._continueToInfect(), PHASE_DELAY);
     }
-  }
-
-  // ── Draw → (Discard?) → Infect → Next player ─────────────────────────────────
-
-  _runDrawAndInfect() {
-    // ── Draw phase ────────────────────────────────────────────────────────────
-    this.state.turnPhase = 'draw';
-    this.state = runDrawPhase(this.state);
-    this.broadcastState();
-
-    if (this.state.phase !== 'playing') {
-      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
-      return;
-    }
-
-    // ── Hand-limit check ──────────────────────────────────────────────────────
-    // If current player's hand exceeds 7, pause and wait for them to discard.
-    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
-    if (currentPlayer && currentPlayer.hand.length > HAND_LIMIT) {
-      this.state.turnPhase = 'discard';
-      this.broadcastState();
-      // Execution will resume in discardCard() once hand ≤ HAND_LIMIT
-      return;
-    }
-
-    // ── Infect phase (after delay) ────────────────────────────────────────────
-    setTimeout(() => this._continueToInfect(), PHASE_DELAY);
-  }
-
-  _continueToInfect() {
-    this.state.turnPhase = 'infect';
-    this.state = runInfectPhase(this.state);
-    this.broadcastState();
-
-    if (this.state.phase !== 'playing') {
-      this.io?.to(this.roomCode).emit('game:over', { won: false, reason: this.state.lostReason });
-      return;
-    }
-
-    // ── Advance to next player ────────────────────────────────────────────────
-    setTimeout(() => {
-      this.state = advanceToNextPlayer(this.state);
-      this.broadcastState();
-    }, PHASE_DELAY);
   }
 
   // ── State delivery ────────────────────────────────────────────────────────────

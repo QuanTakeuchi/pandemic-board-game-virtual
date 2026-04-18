@@ -63,6 +63,22 @@ class GameManager {
       if (!game) return ack({ error: 'Game not found.' });
       game.discardCard(socket.id, cardCityId, ack);
     });
+
+    // Player clicks the player deck to draw 2 cards
+    socket.on('game:draw-cards', (ack) => {
+      if (typeof ack !== 'function') ack = () => {};
+      const game = getGame();
+      if (!game) return ack({ error: 'Game not found.' });
+      game.drawCards(socket.id, ack);
+    });
+
+    // Player clicks the infection deck to run the infect phase
+    socket.on('game:run-infect', (ack) => {
+      if (typeof ack !== 'function') ack = () => {};
+      const game = getGame();
+      if (!game) return ack({ error: 'Game not found.' });
+      game.runInfect(socket.id, ack);
+    });
   }
 }
 

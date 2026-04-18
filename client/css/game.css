@@ -563,6 +563,168 @@
   );
 }
 
+/* ── Interactive deck widgets ────────────────────────────────────────────── */
+.deck-widget {
+  position: absolute;
+  bottom: 44px;         /* above transpacific legend */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 8px;
+  background: rgba(10, 18, 28, 0.82);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: default;
+  user-select: none;
+  backdrop-filter: blur(4px);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  min-width: 88px;
+}
+
+.deck-widget-player    { right: 130px; }
+.deck-widget-infection { right: 20px;  }
+
+/* Card-stack graphic */
+.deck-card-stack {
+  position: relative;
+  width: 48px;
+  height: 64px;
+  margin-bottom: 2px;
+}
+
+.deck-card-back {
+  position: absolute;
+  width: 44px;
+  height: 62px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* Stagger offsets for depth illusion */
+.deck-card-back-3 { top: 4px; left: 4px; }
+.deck-card-back-2 { top: 2px; left: 2px; }
+.deck-card-back-1 { top: 0;   left: 0;   }
+
+/* Player deck backs — blue-grey gradient */
+.deck-widget-player .deck-card-back {
+  background: linear-gradient(135deg, #1a2a4a 0%, #0d1a30 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.deck-widget-player .deck-card-back-1 {
+  background: linear-gradient(135deg, #243a60 0%, #152040 100%);
+}
+
+/* Infection deck backs — dark red gradient */
+.deck-widget-infection .deck-card-back {
+  background: linear-gradient(135deg, #3a1010 0%, #1e0808 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.deck-widget-infection .deck-card-back-1 {
+  background: linear-gradient(135deg, #5a1a1a 0%, #2e0a0a 100%);
+}
+
+/* Labels */
+.deck-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.deck-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.deck-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* Call-to-action label (hidden by default, shown when active) */
+.deck-cta {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+/* ── Waiting state: another player's turn, correct phase ─────────────────── */
+.deck-widget-waiting {
+  border-color: rgba(255,255,255,0.18);
+}
+.deck-widget-waiting .deck-cta {
+  opacity: 0.35;
+  color: var(--muted);
+}
+
+/* ── Active state: MY turn, correct phase ────────────────────────────────── */
+.deck-widget-active {
+  cursor: pointer;
+  border-color: transparent;
+  transform: translateY(-2px);
+  animation: deckPulse 2s ease-in-out infinite;
+}
+
+.deck-widget-player.deck-widget-active {
+  box-shadow: 0 0 0 2px #4a90d9, 0 6px 24px rgba(74,144,217,0.45);
+}
+.deck-widget-infection.deck-widget-active {
+  box-shadow: 0 0 0 2px #d94a4a, 0 6px 24px rgba(217,74,74,0.45);
+}
+
+.deck-widget-active .deck-cta {
+  opacity: 1;
+}
+.deck-widget-player.deck-widget-active    .deck-cta { color: #4a90d9; }
+.deck-widget-infection.deck-widget-active .deck-cta { color: #d94a4a; }
+
+.deck-widget-active:hover {
+  transform: translateY(-4px) scale(1.04);
+}
+.deck-widget-player.deck-widget-active:hover {
+  box-shadow: 0 0 0 2px #6aaae8, 0 10px 32px rgba(74,144,217,0.6);
+}
+.deck-widget-infection.deck-widget-active:hover {
+  box-shadow: 0 0 0 2px #e86a6a, 0 10px 32px rgba(217,74,74,0.6);
+}
+
+@keyframes deckPulse {
+  0%,100% { box-shadow: 0 0 0 2px #4a90d9, 0 6px 24px rgba(74,144,217,0.4); }
+  50%      { box-shadow: 0 0 0 4px #4a90d9, 0 6px 32px rgba(74,144,217,0.65); }
+}
+.deck-widget-infection.deck-widget-active {
+  animation-name: deckPulseRed;
+}
+@keyframes deckPulseRed {
+  0%,100% { box-shadow: 0 0 0 2px #d94a4a, 0 6px 24px rgba(217,74,74,0.4); }
+  50%      { box-shadow: 0 0 0 4px #d94a4a, 0 6px 32px rgba(217,74,74,0.65); }
+}
+
+/* ── Flying card (draw animation) ────────────────────────────────────────── */
+.flying-card {
+  position: fixed;
+  z-index: 9990;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #243a60 0%, #152040 100%);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.55);
+  pointer-events: none;
+  transform: rotate(-8deg) scale(1);
+  /* Transition drives the whole flight */
+  transition: left 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              top  0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.42s ease,
+              transform 0.42s ease;
+}
+
 /* ── Infection animation overlay ─────────────────────────────────────────── */
 .infection-overlay {
   position: fixed;
