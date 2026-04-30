@@ -26,6 +26,10 @@ export function initHud(roomCode) {
 
 // ── Full state render (called on every game:state event) ─────────────────────
 
+// Module-level callback set by game-client.js so renderCardHand can trigger event modals.
+let _onPlayEvent = null;
+export function setEventCardCallback(fn) { _onPlayEvent = fn; }
+
 export function renderHud(state, myPlayerIndex = null) {
   if (!state) return;
   renderOutbreakTrack(state.outbreakCount ?? 0);
@@ -35,9 +39,10 @@ export function renderHud(state, myPlayerIndex = null) {
   renderActionPips(state.actionsRemaining ?? 4);
   renderTurnBanner(state, myPlayerIndex);
   if (myPlayerIndex !== null && state.players?.[myPlayerIndex]) {
-    renderCardHand(state.players[myPlayerIndex].hand ?? []);
+    renderCardHand(state.players[myPlayerIndex].hand ?? [], state);
   }
   renderDeckCounts(state);
+  renderOneQuietNightBadge(state);
 }
 
 // ── Outbreak track ────────────────────────────────────────────────────────────
@@ -214,6 +219,19 @@ function formatLogEntry(entry) {
     case 'eradicate':
       return `<span style="color:var(--success)">✓ ERADICATED</span> <span class="log-city-${entry.color}">${entry.color}</span>`;
 
+    case 'event-airlift':
+      return `<span class="log-event">✨ Airlift</span> ${p(entry.player)} moved ${p(entry.target)} to ${c(entry.to, entry.color)}`;
+    case 'event-government-grant':
+      return `<span class="log-event">✨ Gov. Grant</span> ${p(entry.player)} built a station in ${c(entry.city, entry.color)}`;
+    case 'event-one-quiet-night':
+      return `<span class="log-event">✨ One Quiet Night</span> played by ${p(entry.player)} — next infection skipped`;
+    case 'event-one-quiet-night-skip':
+      return `<span class="log-event">🌙 One Quiet Night</span> — infection phase skipped`;
+    case 'event-forecast':
+      return `<span class="log-event">✨ Forecast</span> ${p(entry.player)} is rearranging the infection deck`;
+    case 'event-resilient-population':
+      return `<span class="log-event">✨ Resilient Pop.</span> ${p(entry.player)} removed <span class="log-city-${entry.color}">${esc(entry.city)}</span> from infection discard`;
+
     case 'outbreak':
       return `<span class="log-outbreak">⚠ OUTBREAK</span> in <span class="log-city-${entry.color}">${esc(entry.city)}</span>`;
     case 'epidemic':
@@ -289,7 +307,7 @@ function renderTurnBanner(state, myPlayerIndex) {
 
 const COLOR_HEX = { blue: '#4a90d9', yellow: '#e8c34a', black: '#9090a0', red: '#d94a4a' };
 
-function renderCardHand(hand) {
+function renderCardHand(hand, state) {
   const container = document.getElementById('card-hand');
   if (!container) return;
   container.innerHTML = '';
@@ -299,18 +317,58 @@ function renderCardHand(hand) {
     return;
   }
 
+  const canPlayEvents = state?.phase === 'playing' && !state?.forecastPending;
+
   hand.forEach(card => {
-    const div = document.createElement('div');
     if (card.type === 'epidemic') {
+      const div = document.createElement('div');
       div.className = 'hand-card hand-card-epidemic';
       div.textContent = '⚠️ Epidemic';
+      container.appendChild(div);
+    } else if (card.type === 'event') {
+      const div = document.createElement('div');
+      div.className = 'hand-card hand-card-event';
+      div.title = card.desc || card.name;
+
+      const label = document.createElement('span');
+      label.className = 'hand-card-event-name';
+      label.textContent = `✨ ${card.name}`;
+      div.appendChild(label);
+
+      if (canPlayEvents && _onPlayEvent) {
+        const btn = document.createElement('button');
+        btn.className = 'hand-card-event-play';
+        btn.textContent = 'Play';
+        btn.addEventListener('click', () => _onPlayEvent(card, state));
+        div.appendChild(btn);
+      }
+      container.appendChild(div);
     } else {
-      div.className = `hand-card hand-card-city`;
+      const div = document.createElement('div');
+      div.className = 'hand-card hand-card-city';
       div.style.borderLeftColor = COLOR_HEX[card.color] || '#888';
       div.textContent = card.name || card.cityId;
+      container.appendChild(div);
     }
-    container.appendChild(div);
   });
+}
+
+// ── One Quiet Night status badge ──────────────────────────────────────────────
+
+function renderOneQuietNightBadge(state) {
+  let badge = document.getElementById('oqn-badge');
+  if (state?.oneQuietNightActive) {
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'oqn-badge';
+      badge.className = 'oqn-badge';
+      badge.title = 'One Quiet Night is active — next infection phase will be skipped.';
+      badge.textContent = '🌙 One Quiet Night';
+      document.querySelector('.game-topbar')?.appendChild(badge);
+    }
+  } else if (badge) {
+    badge.remove();
+  }
 }
 
 // ── Available actions panel ───────────────────────────────────────────────────

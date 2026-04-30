@@ -2,9 +2,10 @@
 
 import { drawBoard, resizeCanvas }    from './renderer/board.js';
 import { drawPawns }                  from './renderer/pawns.js';
-import { initHud, renderHud, renderEventLog, renderAvailableActions } from './renderer/hud.js';
+import { initHud, renderHud, renderEventLog, renderAvailableActions, setEventCardCallback } from './renderer/hud.js';
 import { InputHandler, getAvailableActions } from './input.js';
 import { InfectionAnimator }          from './renderer/infection-anim.js';
+import { CITIES }                     from './data/cities.js';
 
 // ── URL params ────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ function _processQueue() {
   renderAvailableActions(getAvailableActions(state, myPlayerIndex), dispatchAction);
   updateDiscardOverlay(state, myPlayerIndex);
   updateDeckWidgets(state, myPlayerIndex);
+  updateForecastModal(state, myPlayerIndex);
 
   // ── Determine new animation events ────────────────────────────────────────
   const newLogLen   = state.eventLog?.length ?? 0;
@@ -314,7 +316,7 @@ function updateDiscardOverlay(state, myIdx) {
   const list = discardOverlay.querySelector('#discard-card-list');
 
   me.hand.forEach(card => {
-    if (card.type === 'epidemic') return;
+    if (card.type !== 'city') return;   // only city cards can be discarded here
     const btn = document.createElement('button');
     btn.className = 'discard-card-btn';
     btn.style.borderLeftColor = COLOR_HEX[card.color] || '#888';
@@ -336,6 +338,333 @@ function escHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// ── Event card modals ─────────────────────────────────────────────────────────
+
+// Register the callback so hud.js can trigger modals when a card is clicked.
+setEventCardCallback((card, state) => showEventCardModal(card, state));
+
+let _eventModal = null;
+
+function _closeEventModal() {
+  if (_eventModal) { _eventModal.remove(); _eventModal = null; }
+}
+
+function showEventCardModal(card, state) {
+  _closeEventModal();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'event-modal-overlay';
+  _eventModal = overlay;
+
+  const box = document.createElement('div');
+  box.className = 'event-modal-box';
+
+  const title = document.createElement('div');
+  title.className = 'event-modal-title';
+  title.textContent = `✨ ${card.name}`;
+
+  const desc = document.createElement('div');
+  desc.className = 'event-modal-desc';
+  desc.textContent = card.desc || '';
+
+  box.appendChild(title);
+  box.appendChild(desc);
+
+  // Build card-specific body
+  const body = _buildEventModalBody(card, state, (eventData) => {
+    socket.emit('game:play-event', eventData, res => {
+      if (res?.error) showToast(res.error, 'error');
+      _closeEventModal();
+    });
+  });
+  if (!body) { _closeEventModal(); return; }
+  box.appendChild(body);
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn btn-secondary';
+  cancel.textContent = 'Cancel';
+  cancel.style.marginTop = '8px';
+  cancel.addEventListener('click', _closeEventModal);
+  box.appendChild(cancel);
+
+  overlay.appendChild(box);
+  overlay.addEventListener('click', e => { if (e.target === overlay) _closeEventModal(); });
+  document.body.appendChild(overlay);
+}
+
+function _buildEventModalBody(card, state, onPlay) {
+  const frag = document.createDocumentFragment();
+
+  if (card.id === 'one-quiet-night') {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Play — Skip Next Infection';
+    btn.addEventListener('click', () => onPlay({ eventId: 'one-quiet-night' }));
+    frag.appendChild(btn);
+    return frag;
+  }
+
+  if (card.id === 'airlift') {
+    // Player selector
+    const players = state.players.filter(p => p.isConnected);
+    const playerSel = _makeSelect(
+      players.map(p => ({ value: p.id, label: p.name })),
+      'Select pawn to move…'
+    );
+
+    // City selector
+    const citySel = _makeCitySelect(state, null);
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Play — Airlift';
+    btn.addEventListener('click', () => {
+      if (!playerSel.value || !citySel.value) {
+        showToast('Select a player and a destination city.', 'error');
+        return;
+      }
+      onPlay({ eventId: 'airlift', targetPlayerId: playerSel.value, cityId: citySel.value });
+    });
+
+    frag.appendChild(_labeled('Move pawn:', playerSel));
+    frag.appendChild(_labeled('To city:', citySel));
+    frag.appendChild(btn);
+    return frag;
+  }
+
+  if (card.id === 'government-grant') {
+    const eligible = Object.values(CITIES)
+      .filter(c => !state.researchStations.includes(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!eligible.length) {
+      const note = document.createElement('div');
+      note.style.cssText = 'color:var(--muted);font-size:13px;text-align:center;';
+      note.textContent = 'All cities already have research stations.';
+      frag.appendChild(note);
+      return frag;
+    }
+
+    const citySel = _makeSelect(
+      eligible.map(c => ({ value: c.id, label: c.name })),
+      'Select city…'
+    );
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Play — Build Station';
+    btn.addEventListener('click', () => {
+      if (!citySel.value) { showToast('Select a city.', 'error'); return; }
+      onPlay({ eventId: 'government-grant', cityId: citySel.value });
+    });
+
+    frag.appendChild(_labeled('Add station to:', citySel));
+    frag.appendChild(btn);
+    return frag;
+  }
+
+  if (card.id === 'resilient-population') {
+    const discard = state.infectionDeck?.discardPile ?? [];
+    if (!discard.length) {
+      const note = document.createElement('div');
+      note.style.cssText = 'color:var(--muted);font-size:13px;text-align:center;';
+      note.textContent = 'The infection discard pile is empty.';
+      frag.appendChild(note);
+      return frag;
+    }
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:6px;';
+    label.textContent = 'Choose a card to remove permanently:';
+    frag.appendChild(label);
+
+    const list = document.createElement('div');
+    list.className = 'event-modal-card-list';
+    let selected = null;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Play — Remove Card';
+    btn.style.marginTop = '10px';
+    btn.addEventListener('click', () => {
+      if (!selected) { showToast('Select a card to remove.', 'error'); return; }
+      onPlay({ eventId: 'resilient-population', cardCityId: selected });
+    });
+
+    discard.forEach(c => {
+      const item = document.createElement('button');
+      item.className = 'event-modal-card-item';
+      item.style.borderLeftColor = _colorHex(c.color);
+      item.textContent = c.name;
+      item.addEventListener('click', () => {
+        list.querySelectorAll('.event-modal-card-item').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        selected = c.cityId;
+      });
+      list.appendChild(item);
+    });
+
+    frag.appendChild(list);
+    frag.appendChild(btn);
+    return frag;
+  }
+
+  if (card.id === 'forecast') {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Play — View & Rearrange';
+    btn.addEventListener('click', () => onPlay({ eventId: 'forecast' }));
+    frag.appendChild(btn);
+    return frag;
+  }
+
+  return null;
+}
+
+// ── Forecast reorder modal ────────────────────────────────────────────────────
+
+let _forecastModal = null;
+
+function updateForecastModal(state, myPlayerIndex) {
+  const pending = state?.forecastPending;
+
+  if (!pending) {
+    if (_forecastModal) { _forecastModal.remove(); _forecastModal = null; }
+    return;
+  }
+
+  const isMyForecast = myPlayerIndex !== null && pending.playerIndex === myPlayerIndex;
+
+  if (!_forecastModal) {
+    _forecastModal = document.createElement('div');
+    _forecastModal.id = 'forecast-overlay';
+    document.body.appendChild(_forecastModal);
+  }
+
+  const cards   = [...pending.cards];   // local mutable copy for reordering
+  let orderIds  = cards.map(c => c.cityId);
+
+  function rebuild() {
+    _forecastModal.innerHTML = '';
+
+    const box = document.createElement('div');
+    box.className = 'forecast-box';
+
+    const title = document.createElement('div');
+    title.className = 'forecast-title';
+    title.textContent = '🔮 Forecast — Top of Infection Deck';
+    box.appendChild(title);
+
+    const sub = document.createElement('div');
+    sub.className = 'forecast-sub';
+    sub.textContent = isMyForecast
+      ? 'Drag or use ▲▼ to reorder, then confirm.'
+      : `Waiting for ${state.players[pending.playerIndex]?.name ?? '…'} to rearrange…`;
+    box.appendChild(sub);
+
+    const list = document.createElement('div');
+    list.className = 'forecast-card-list';
+
+    orderIds.forEach((cityId, idx) => {
+      const cardData = cards.find(c => c.cityId === cityId);
+      const row = document.createElement('div');
+      row.className = 'forecast-card-row';
+      row.style.borderLeftColor = _colorHex(cardData?.color);
+
+      const name = document.createElement('span');
+      name.className = 'forecast-card-name';
+      name.textContent = cardData?.name ?? cityId;
+      row.appendChild(name);
+
+      if (isMyForecast) {
+        const upBtn = document.createElement('button');
+        upBtn.className = 'forecast-move-btn';
+        upBtn.textContent = '▲';
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener('click', () => {
+          [orderIds[idx - 1], orderIds[idx]] = [orderIds[idx], orderIds[idx - 1]];
+          rebuild();
+        });
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'forecast-move-btn';
+        downBtn.textContent = '▼';
+        downBtn.disabled = idx === orderIds.length - 1;
+        downBtn.addEventListener('click', () => {
+          [orderIds[idx], orderIds[idx + 1]] = [orderIds[idx + 1], orderIds[idx]];
+          rebuild();
+        });
+
+        row.appendChild(upBtn);
+        row.appendChild(downBtn);
+      }
+
+      list.appendChild(row);
+    });
+
+    box.appendChild(list);
+
+    if (isMyForecast) {
+      const confirm = document.createElement('button');
+      confirm.className = 'btn btn-primary';
+      confirm.textContent = 'Confirm Order';
+      confirm.style.marginTop = '14px';
+      confirm.addEventListener('click', () => {
+        socket.emit('game:forecast-confirm', { orderedCityIds: orderIds }, res => {
+          if (res?.error) showToast(res.error, 'error');
+        });
+      });
+      box.appendChild(confirm);
+    }
+
+    _forecastModal.appendChild(box);
+  }
+
+  rebuild();
+}
+
+// ── Event modal helpers ───────────────────────────────────────────────────────
+
+function _makeSelect(options, placeholder) {
+  const sel = document.createElement('select');
+  sel.className = 'event-modal-select';
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = placeholder;
+  blank.disabled = true;
+  blank.selected = true;
+  sel.appendChild(blank);
+  options.forEach(({ value, label }) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
+
+function _makeCitySelect(state, excludeId) {
+  const cities = Object.values(CITIES)
+    .filter(c => c.id !== excludeId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return _makeSelect(cities.map(c => ({ value: c.id, label: c.name })), 'Select city…');
+}
+
+function _labeled(label, control) {
+  const wrap = document.createElement('div');
+  wrap.className = 'event-modal-field';
+  const lbl = document.createElement('label');
+  lbl.className = 'event-modal-label';
+  lbl.textContent = label;
+  wrap.appendChild(lbl);
+  wrap.appendChild(control);
+  return wrap;
+}
+
+function _colorHex(color) {
+  return { blue: '#4a90d9', yellow: '#e8c34a', black: '#9090a0', red: '#d94a4a' }[color] || '#888';
 }
 
 // ── Toast notifications ───────────────────────────────────────────────────────
