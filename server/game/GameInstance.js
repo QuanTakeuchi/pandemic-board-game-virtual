@@ -1,8 +1,10 @@
 const { PLAYER_CARDS }    = require('./data/player-cards');
 const { INFECTION_CARDS } = require('./data/infection-cards');
+const { EVENT_CARDS }     = require('./data/event-cards');
 const { ROLES }           = require('./data/roles');
 const { shuffle, insertEpidemics } = require('./engine/deck');
 const { applyAction }    = require('./engine/actions');
+const { applyEvent }     = require('./engine/event-actions');
 const { runDrawPhase, runInfectPhase, advanceToNextPlayer, HAND_LIMIT } = require('./engine/turn');
 
 const STARTING_HAND_SIZE   = { 2: 4, 3: 3, 4: 2 };
@@ -39,8 +41,8 @@ class GameInstance {
       supplyUsed[card.color] += cubeCount;
     }
 
-    // ── 2. Player deck: deal hands, then insert epidemics ────────────────────
-    const pool  = shuffle([...PLAYER_CARDS]);
+    // ── 2. Player deck: shuffle city + event cards, deal hands, insert epidemics
+    const pool  = shuffle([...PLAYER_CARDS, ...EVENT_CARDS]);
     const hands = Array.from({ length: playerCount }, () => []);
     for (let i = 0; i < handSize * playerCount; i++) hands[i % playerCount].push(pool.shift());
     const playerDrawPile = insertEpidemics(pool, this.options.epidemicCount);
@@ -86,6 +88,8 @@ class GameInstance {
       infectionRate:      INFECTION_RATE_TRACK[0],
       curesFound:         0,
       opsFlightUsedThisTurn: false,
+      oneQuietNightActive:   false,
+      forecastPending:       null,   // null | { playerIndex, cards }
 
       eventLog: [{ type: 'game-start', message: `Game started with ${playerCount} players.` }],
     };
@@ -254,6 +258,74 @@ class GameInstance {
     }
   }
 
+  // ── Play a Special Event card ─────────────────────────────────────────────────
+  // Any player may play an event card at any time during the game.
+  // Event cards do not cost an action.
+
+  playEvent(socketId, eventData, ack) {
+    if (this.state.phase !== 'playing') {
+      return ack({ error: 'The game is not in progress.' });
+    }
+    if (this.state.forecastPending) {
+      return ack({ error: 'Resolve the pending Forecast before playing another event.' });
+    }
+
+    const playerIdx = this.state.players.findIndex(p => p.id === socketId);
+    if (playerIdx === -1) return ack({ error: 'Player not found.' });
+
+    try {
+      this.state = applyEvent(this.state, socketId, eventData);
+    } catch (err) {
+      return ack({ error: err.message });
+    }
+
+    // If we just satisfied the hand-limit during the discard phase, advance
+    if (this.state.turnPhase === 'discard') {
+      const cp = this.state.players[this.state.currentPlayerIndex];
+      if (cp && cp.hand.length <= HAND_LIMIT) {
+        this.state.turnPhase = 'infect';
+      }
+    }
+
+    this.broadcastState();
+    return ack({ ok: true });
+  }
+
+  // ── Confirm Forecast card order ───────────────────────────────────────────────
+  // The player who played Forecast submits their chosen order for the top 6 cards.
+
+  forecastConfirm(socketId, { orderedCityIds } = {}, ack) {
+    if (!this.state.forecastPending) {
+      return ack({ error: 'No Forecast is pending.' });
+    }
+
+    const { playerIndex, cards } = this.state.forecastPending;
+    const owner = this.state.players[playerIndex];
+    if (!owner || owner.id !== socketId) {
+      return ack({ error: 'Only the player who played Forecast can confirm the order.' });
+    }
+
+    if (!Array.isArray(orderedCityIds) || orderedCityIds.length !== cards.length) {
+      return ack({ error: 'Invalid card order.' });
+    }
+
+    // Validate the submitted IDs match the pending cards (same set, any order)
+    const pendingIds  = cards.map(c => c.cityId).sort();
+    const submittedIds = [...orderedCityIds].sort();
+    if (JSON.stringify(pendingIds) !== JSON.stringify(submittedIds)) {
+      return ack({ error: 'Submitted cards do not match the Forecast cards.' });
+    }
+
+    // Rebuild ordered array from the original card objects (preserves name/color)
+    const cardMap      = Object.fromEntries(cards.map(c => [c.cityId, c]));
+    const reordered    = orderedCityIds.map(id => cardMap[id]);
+    this.state.infectionDeck.drawPile = [...reordered, ...this.state.infectionDeck.drawPile];
+    this.state.forecastPending = null;
+
+    this.broadcastState();
+    return ack({ ok: true });
+  }
+
   // ── State delivery ────────────────────────────────────────────────────────────
 
   getPublicState() {
@@ -265,7 +337,7 @@ class GameInstance {
         discardPile:   s.playerDeck.discardPile,
       },
       infectionDeck: {
-        drawPileCount: s.infectionDeck.drawPile.length,
+        drawPileCount: s.infectionDeck.drawPile.length + (s.forecastPending?.cards.length ?? 0),
         discardPile:   s.infectionDeck.discardPile,
       },
     };

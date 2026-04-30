@@ -834,3 +834,219 @@
   color: var(--text);
   line-height: 1.2;
 }
+
+/* ── Event card in hand ──────────────────────────────────────────────────── */
+.hand-card-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: #0e1f14;
+  border: 1px solid #2a6040;
+  border-left: 3px solid #3cb371;
+  font-size: 12px;
+}
+
+.hand-card-event-name {
+  color: #7fcc9a;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hand-card-event-play {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #1a5c35;
+  border: 1px solid #3cb371;
+  border-radius: 4px;
+  color: #7fcc9a;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.hand-card-event-play:hover { background: #236b40; }
+
+/* ── One Quiet Night topbar badge ────────────────────────────────────────── */
+.oqn-badge {
+  margin-left: 16px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #1a2a3a;
+  border: 1px solid #4a90d9;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4a90d9;
+  white-space: nowrap;
+}
+
+/* ── Event log label ──────────────────────────────────────────────────────── */
+.log-event { color: #7fcc9a; font-weight: 700; }
+
+/* ── Event card modal overlay ────────────────────────────────────────────── */
+.event-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 95;
+}
+
+.event-modal-box {
+  background: var(--surface);
+  border: 1px solid #2a6040;
+  border-top: 3px solid #3cb371;
+  border-radius: 14px;
+  padding: 28px 32px;
+  min-width: 320px;
+  max-width: 460px;
+  width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 16px 64px rgba(0,0,0,0.65);
+}
+
+.event-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #7fcc9a;
+}
+
+.event-modal-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.event-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.event-modal-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.event-modal-select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.event-modal-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.event-modal-card-item {
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.event-modal-card-item:hover    { background: #1a2a3a; }
+.event-modal-card-item.selected { background: #1a2a3a; border-color: #3cb371; color: #7fcc9a; }
+
+/* ── Forecast overlay ────────────────────────────────────────────────────── */
+#forecast-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 92;
+}
+
+.forecast-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid #9b59b6;
+  border-radius: 14px;
+  padding: 28px 32px;
+  min-width: 320px;
+  max-width: 440px;
+  width: 90vw;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  box-shadow: 0 16px 64px rgba(0,0,0,0.65);
+}
+
+.forecast-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #c39bd3;
+  text-align: center;
+}
+
+.forecast-sub {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.forecast-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.forecast-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid #888;
+  border-radius: 6px;
+}
+
+.forecast-card-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.forecast-move-btn {
+  padding: 2px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.forecast-move-btn:not(:disabled):hover { color: var(--text); background: #1e2a3a; }
+.forecast-move-btn:disabled { opacity: 0.25; cursor: default; }

@@ -79,6 +79,22 @@ class GameManager {
       if (!game) return ack({ error: 'Game not found.' });
       game.runInfect(socket.id, ack);
     });
+
+    // Any player plays a Special Event card (does not cost an action)
+    socket.on('game:play-event', (eventData, ack) => {
+      if (typeof ack !== 'function') ack = () => {};
+      const game = getGame();
+      if (!game) return ack({ error: 'Game not found.' });
+      game.playEvent(socket.id, eventData, ack);
+    });
+
+    // Forecast card: player confirms their chosen order for the top 6 infection cards
+    socket.on('game:forecast-confirm', (data, ack) => {
+      if (typeof ack !== 'function') ack = () => {};
+      const game = getGame();
+      if (!game) return ack({ error: 'Game not found.' });
+      game.forecastConfirm(socket.id, data, ack);
+    });
   }
 }
 

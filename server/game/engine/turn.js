@@ -87,6 +87,13 @@ function _resolveEpidemic(s, epidemicCard) {
 function runInfectPhase(state) {
   const s = deepClone(state);
 
+  // One Quiet Night: skip this infection phase entirely
+  if (s.oneQuietNightActive) {
+    s.oneQuietNightActive = false;
+    s.eventLog.unshift({ type: 'event-one-quiet-night-skip' });
+    return s;
+  }
+
   for (let i = 0; i < s.infectionRate; i++) {
     if (s.infectionDeck.drawPile.length === 0) break;
 
