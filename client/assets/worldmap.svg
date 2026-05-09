@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500">
+  <defs>
+    <style>
+      .land {
+        fill: #1a3a60;
+        stroke: #2a5a90;
+        stroke-width: 1;
+        stroke-linejoin: round;
+      }
+    </style>
+  </defs>
+
+  <!-- North America (mainland + Central America, clockwise from NW Alaska) -->
+  <polygon class="land" points="
+    33,100 42,78 47,56 69,53 108,56
+    139,100 150,111 156,147 172,161
+    194,186 250,208 269,228 286,228
+    281,203 278,181 292,153 306,133
+    319,128 356,119 347,83 281,75
+    278,47 222,31 153,50
+  "/>
+
+  <!-- South America -->
+  <polygon class="land" points="
+    278,222 333,219 403,236 403,278
+    394,292 361,347 314,403 292,389
+    283,333 278,264
+  "/>
+
+  <!-- Greenland -->
+  <polygon class="land" points="
+    333,33 356,83 414,67 444,39 450,17 378,17
+  "/>
+
+  <!-- Iceland (small) -->
+  <polygon class="land" points="
+    433,86 442,80 456,82 452,92 436,94
+  "/>
+
+  <!-- Eurasia (one continuous landmass: Europe + Russia + Middle East + South/SE Asia) -->
+  <polygon class="land" points="
+    475,150 475,128 500,108 522,89
+    542,56 583,53 639,56 722,47
+    792,42 889,50 917,86 892,119
+    861,156 836,181 803,200
+    789,244 778,236 756,189
+    722,231 714,228 658,214 658,189
+    600,167 603,150 572,144
+    578,136 550,139 542,144
+    522,128 508,128 494,131
+  "/>
+
+  <!-- Africa -->
+  <polygon class="land" points="
+    486,147 528,147 600,167 622,217
+    642,219 611,281 597,306
+    578,347 550,347 453,333
+    453,208 483,147
+  "/>
+
+  <!-- Australia -->
+  <polygon class="land" points="
+    650,256 672,242 706,231 714,228
+    722,222 750,258 758,272 756,297
+    731,303 694,281 658,292
+  "/>
+
+  <!-- New Zealand (simplified) -->
+  <polygon class="land" points="
+    800,358 806,345 816,348 810,362
+  "/>
+
+  <!-- Japan (simplified) -->
+  <polygon class="land" points="
+    878,136 883,128 895,132 892,143 882,148
+  "/>
+
+  <!-- Sri Lanka (small) -->
+  <polygon class="land" points="
+    723,238 728,232 733,238 728,245
+  "/>
+
+  <!-- Philippines (simplified) -->
+  <polygon class="land" points="
+    818,186 823,178 832,183 826,194
+  "/>
+
+  <!-- Borneo (simplified) -->
+  <polygon class="land" points="
+    800,228 817,214 836,222 833,244 808,250
+  "/>
+
+  <!-- Sumatra (simplified) -->
+  <polygon class="land" points="
+    764,225 780,214 800,222 794,236 769,239
+  "/>
+
+  <!-- Madagascar (simplified) -->
+  <polygon class="land" points="
+    581,300 586,278 597,281 592,308
+  "/>
+
+  <!-- UK + Ireland (simplified) -->
+  <polygon class="land" points="
+    458,108 464,100 474,103 478,114 466,119 455,117
+  "/>
+</svg>
