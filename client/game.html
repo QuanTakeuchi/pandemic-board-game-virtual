@@ -53,6 +53,43 @@
   <!-- ── Body ─────────────────────────────────────────────────────────────── -->
   <div class="game-body">
 
+    <!-- Left sidebar -->
+    <aside class="game-sidebar game-sidebar-left">
+
+      <!-- Players -->
+      <div class="sidebar-section">
+        <h3>Players</h3>
+        <div class="player-cards" id="player-cards">
+          <div class="player-card" style="opacity:.35;border-style:dashed;">
+            <div class="p-name" style="color:var(--muted);">Waiting for game…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="sidebar-section">
+        <h3>Actions</h3>
+        <div class="actions-pip-row" id="actions-pips">
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+          <div class="action-pip"></div>
+        </div>
+        <button class="btn btn-secondary btn-full" id="btn-end-turn" style="margin-top:10px;font-size:13px;">
+          End Turn Early
+        </button>
+      </div>
+
+      <!-- Available actions -->
+      <div class="sidebar-section sidebar-section-grow">
+        <h3>Available Actions</h3>
+        <div id="available-actions">
+          <div class="avail-actions-empty">Waiting for your turn…</div>
+        </div>
+      </div>
+
+    </aside>
+
     <!-- Board canvas -->
     <div class="board-wrap">
       <canvas id="board-canvas"></canvas>
@@ -94,40 +131,8 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
-    <aside class="game-sidebar">
-
-      <!-- Players -->
-      <div class="sidebar-section">
-        <h3>Players</h3>
-        <div class="player-cards" id="player-cards">
-          <div class="player-card" style="opacity:.35;border-style:dashed;">
-            <div class="p-name" style="color:var(--muted);">Waiting for game…</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="sidebar-section">
-        <h3>Actions</h3>
-        <div class="actions-pip-row" id="actions-pips">
-          <div class="action-pip"></div>
-          <div class="action-pip"></div>
-          <div class="action-pip"></div>
-          <div class="action-pip"></div>
-        </div>
-        <button class="btn btn-secondary btn-full" id="btn-end-turn" style="margin-top:10px;font-size:13px;">
-          End Turn Early
-        </button>
-      </div>
-
-      <!-- Available actions -->
-      <div class="sidebar-section">
-        <h3>Available Actions</h3>
-        <div id="available-actions">
-          <div class="avail-actions-empty">Waiting for your turn…</div>
-        </div>
-      </div>
+    <!-- Right sidebar -->
+    <aside class="game-sidebar game-sidebar-right">
 
       <!-- Your hand -->
       <div class="sidebar-section">

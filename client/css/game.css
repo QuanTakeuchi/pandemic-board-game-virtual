@@ -138,15 +138,31 @@
   height: 100%;
 }
 
-/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+/* ── Sidebars ─────────────────────────────────────────────────────────────── */
 .game-sidebar {
-  width: 260px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--surface);
-  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+.game-sidebar-left  { border-right: 1px solid var(--border); }
+.game-sidebar-right { border-left:  1px solid var(--border); }
+
+/* Available Actions section expands to fill remaining left-panel space */
+.sidebar-section-grow {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section-grow #available-actions {
+  flex: 1;
+  overflow-y: auto;
+  max-height: none;
 }
 
 .sidebar-section {
